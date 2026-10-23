@@ -56,19 +56,19 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "My ProfileList",
-          "target": "My ProfileList"
+          "name": "EmployeesList",
+          "target": "EmployeesList"
         },
         {
           "pattern": "Employees({key}):?query:",
-          "name": "My ProfileObjectPage",
-          "target": "My ProfileObjectPage"
+          "name": "EmployeesObjectPage",
+          "target": "EmployeesObjectPage"
         }
       ],
       "targets": {
-        "My ProfileList": {
+        "EmployeesList": {
           "type": "Component",
-          "id": "My ProfileList",
+          "id": "EmployeesList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
@@ -78,7 +78,7 @@
               "navigation": {
                 "Employees": {
                   "detail": {
-                    "route": "My ProfileObjectPage"
+                    "route": "EmployeesObjectPage"
                   }
                 }
               },
@@ -94,9 +94,9 @@
             }
           }
         },
-        "My ProfileObjectPage": {
+        "EmployeesObjectPage": {
           "type": "Component",
-          "id": "My ProfileObjectPage",
+          "id": "EmployeesObjectPage",
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
