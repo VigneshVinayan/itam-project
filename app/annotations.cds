@@ -26,6 +26,33 @@ annotate db.transaction.Assets with {
     CURRENT_HOLDER          @title: '{i18n>CurrentHolder}'  @Common.Text: CURRENT_HOLDER.FULL_NAME @Common.TextArrangement: #TextOnly;
 };
 
+annotate db.master.Departments with {
+    NODE_KEY    @UI.Hidden;
+    NAME        @title: 'Department Name';
+    COST_CENTER @title: 'Cost Center';
+    IS_ACTIVE   @title: 'Active';
+};
+
+annotate AssetAdminService.Departments with @(
+    UI.HeaderInfo: {
+        TypeName: 'Department',
+        TypeNamePlural: 'Departments',
+        Title: { Value: NAME }
+    },
+    UI.SelectionFields: [NAME, IS_ACTIVE],
+    UI.LineItem: [
+        { Value: NAME },
+        { Value: COST_CENTER },
+        { Value: IS_ACTIVE }
+    ],
+    UI.Facets: [{ $Type: 'UI.ReferenceFacet', Label: 'Department', Target: '@UI.FieldGroup#General' }],
+    UI.FieldGroup #General: { Data: [
+        { Value: NAME },
+        { Value: COST_CENTER },
+        { Value: IS_ACTIVE }
+    ]}
+);
+
 annotate db.master.Employees with {
     NODE_KEY    @UI.Hidden;
     EMPLOYEE_NO @title: '{i18n>EmployeeNo}';
