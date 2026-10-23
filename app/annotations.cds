@@ -82,11 +82,11 @@ annotate db.transaction.OwnershipLedgers with {
 annotate db.transaction.MaintenanceRecords with {
     NODE_KEY       @UI.Hidden;
     TYPE           @title: '{i18n>MaintenanceType}';
-    ISSUE          @title: '{i18n>Issue}';
+    DESCRIPTION          @title: '{i18n>Issue}';
     REPORTED_DATE  @title: '{i18n>ReportedDate}';
     COMPLETED_DATE @title: '{i18n>CompletedDate}';
     STATUS         @title: '{i18n>Status}';
-    RESOLUTION     @title: '{i18n>Resolution}';
+    OUTCOME     @title: '{i18n>Resolution}';
     ASSET          @title: '{i18n>Asset}'         @Common.Text: ASSET.ASSET_TAG      @Common.TextArrangement: #TextOnly;
     SERVICE_VENDOR @title: '{i18n>ServiceVendor}' @Common.Text: SERVICE_VENDOR.NAME  @Common.TextArrangement: #TextOnly;
 };
@@ -96,7 +96,7 @@ annotate db.transaction.ArchiveRecords with {
     ARCHIVED_AT          @title: '{i18n>ArchivedAt}';
     ARCHIVED_BY          @title: '{i18n>ArchivedBy}';
     REASON               @title: '{i18n>Reason}';
-    COMPLIANCE_REFERENCE @title: '{i18n>ComplianceReference}';
+    DISPOSAL_CERT_NO @title: '{i18n>ComplianceReference}';
     DISPOSAL_METHOD      @title: '{i18n>DisposalMethod}';
 };
 
@@ -364,12 +364,12 @@ annotate AssetAdminService.Maintenance with @(
     UI.PresentationVariant: { SortOrder: [{ Property: REPORTED_DATE, Descending: true }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { Value: TYPE },
-        { Value: ISSUE },
+        { Value: DESCRIPTION },
         { Value: SERVICE_VENDOR_NODE_KEY },
         { Value: REPORTED_DATE },
         { Value: COMPLETED_DATE },
         { Value: STATUS, Criticality: STATUS_CRITICALITY, CriticalityRepresentation: #WithIcon },
-        { Value: RESOLUTION }
+        { Value: OUTCOME }
     ]
 );
 
@@ -392,7 +392,7 @@ annotate AssetAdminService.Archive with @(
         { Value: ARCHIVED_AT },
         { Value: ARCHIVED_BY },
         { Value: REASON },
-        { Value: COMPLIANCE_REFERENCE },
+        { Value: DISPOSAL_CERT_NO },
         { Value: DISPOSAL_METHOD }
     ]
 );
@@ -595,7 +595,7 @@ annotate AssetManagerService.Assignments with @(UI.LineItem: [
 
 annotate AssetManagerService.Maintenance with @(UI.LineItem: [
     { Value: TYPE },
-    { Value: ISSUE },
+    { Value: DESCRIPTION },
     { Value: SERVICE_VENDOR_NODE_KEY },
     { Value: REPORTED_DATE },
     { Value: COMPLETED_DATE },
