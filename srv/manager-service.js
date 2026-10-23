@@ -104,6 +104,12 @@ export default cds.service.impl(async function () {
         const item = await SELECT.one.from(AssetRequests).where({ NODE_KEY: req.data.requestId });
         if (!item) req.reject(404, 'Request not found.');
         await checkDepartment(req, item.REQUESTED_BY_NODE_KEY);
+        if (!req.user.is('Admin')) {
+            const asset = await SELECT.one.from(Assets).where({ NODE_KEY: item.ASSET_NODE_KEY });
+            if (!asset || asset.MANAGING_DEPARTMENT_NODE_KEY !== actor.DEPARTMENT_NODE_KEY) {
+                req.reject(403, 'Request asset does not belong to your department.');
+            }
+        }
         if (item.STATUS !== 'PENDING') req.reject(409, 'Request already reviewed.');
         const note = String(req.data.note || '').trim();
         if (note.length > 255) req.reject(400, 'Review note is too long.');
