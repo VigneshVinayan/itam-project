@@ -1,10 +1,12 @@
 sap.ui.define([
     'sap/ui/core/UIComponent', 'sap/m/App', 'sap/m/Page', 'sap/m/VBox',
     'sap/m/Label', 'sap/m/Select', 'sap/ui/core/Item', 'sap/m/TextArea',
-    'sap/m/Button', 'sap/m/List', 'sap/m/StandardListItem',
-    'sap/m/MessageToast', 'sap/m/MessageBox', 'sap/m/Title'
+    'sap/m/Button', 'sap/m/List',
+    'sap/m/MessageToast', 'sap/m/MessageBox', 'sap/m/Title',
+    'sap/m/CustomListItem', 'sap/m/Text', 'sap/m/ObjectStatus'
 ], function (UIComponent, App, Page, VBox, Label, Select, Item, TextArea,
-             Button, List, StandardListItem, MessageToast, MessageBox, Title) {
+             Button, List, MessageToast, MessageBox, Title,
+             CustomListItem, Text, ObjectStatus) {
     'use strict';
 
     const ROOT = '/odata/v4/user/';
@@ -52,10 +54,36 @@ sap.ui.define([
                     choice.addItem(new Item({ key: a.NODE_KEY, text: a.ASSET_TAG + ' — ' + a.ASSET_NAME }));
                 }
                 list.destroyItems();
+                const dateLabel = value => value ? new Date(value).toLocaleString() : 'Not yet';
+                const nextStep = r => {
+                    if (r.STATUS === 'PENDING') return 'Next: Waiting for Manager/Admin review.';
+                    if (r.STATUS === 'REJECTED') return 'Request rejected. No asset operation will follow from this decision.';
+                    if (r.STATUS === 'APPROVED') return r.REQUEST_TYPE === 'RETURN'
+                        ? 'Approved. An authorized person must still return the asset; approval does not complete the return.'
+                        : 'Approved. An authorized Admin must still perform the maintenance action; approval does not start repairs.';
+                    return 'Check with your Manager for details.';
+                };
                 for (const r of requests.value || []) {
-                    list.addItem(new StandardListItem({
-                        title: r.REQUEST_TYPE + ' — ' + r.STATUS,
-                        description: r.DESCRIPTION || r.REQUESTED_AT
+                    const statusState = r.STATUS === 'APPROVED' ? 'Success'
+                        : r.STATUS === 'REJECTED' ? 'Error'
+                        : r.STATUS === 'PENDING' ? 'Warning' : 'None';
+                    const lines = [
+                        new Title({ text: (r.REQUEST_TYPE === 'MAINTENANCE' ? 'Maintenance' : 'Return') + ' request', level: 'H4' }),
+                        new Text({ text: 'Asset: ' + (r.ASSET_TAG || 'Unknown asset') + ' — ' + (r.ASSET_NAME || 'Name unavailable') }),
+                        new ObjectStatus({ text: r.STATUS || 'UNKNOWN', state: statusState }),
+                        new Text({ text: 'Issue / reason: ' + (r.DESCRIPTION || 'Not provided'), wrapping: true }),
+                        new Text({ text: 'Requested: ' + dateLabel(r.REQUESTED_AT) })
+                    ];
+                    if (r.RESOLVED_AT) {
+                        lines.push(new Text({ text: 'Reviewed: ' + dateLabel(r.RESOLVED_AT) }));
+                        if (r.REVIEWED_BY_NAME) lines.push(new Text({ text: 'Reviewed by: ' + r.REVIEWED_BY_NAME }));
+                    }
+                    if (r.DECISION_NOTE) {
+                        lines.push(new Text({ text: 'Decision note: ' + r.DECISION_NOTE, wrapping: true }));
+                    }
+                    lines.push(new Text({ text: nextStep(r), wrapping: true }));
+                    list.addItem(new CustomListItem({
+                        content: [new VBox({ items: lines }).addStyleClass('sapUiSmallMargin')]
                     }));
                 }
             };
