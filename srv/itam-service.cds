@@ -121,7 +121,7 @@ service AssetAdminService {
     @odata.draft.enabled
     entity Vendors as projection on database.master.Vendors;
 
-    @readonly
+    @restrict: [{ grant: 'READ' }, { grant: 'UPDATE' }]
     entity Assignments as projection on database.transaction.AssetAssignments {
         *,
         case when ASSIGNMENT_STATUS = 'ACTIVE' then 5 else 0 end as STATUS_CRITICALITY : Integer
@@ -133,7 +133,7 @@ service AssetAdminService {
     @readonly
     entity AssetRequests as projection on database.transaction.AssetRequests;
 
-    @readonly
+    @restrict: [{ grant: 'READ' }, { grant: 'CREATE' }, { grant: 'UPDATE' }]
     entity Maintenance as projection on database.transaction.MaintenanceRecords {
         *,
         case when STATUS = 'OPEN' then 2 else 3 end as STATUS_CRITICALITY : Integer
@@ -189,7 +189,7 @@ service AssetManagerService {
     action reviewAssetRequest(requestId : UUID, approve : Boolean, note : String(255)) returns String;
     action raiseMaintenanceRequest(asset : UUID, description : String(255)) returns UUID;
 
-    @readonly
+    @restrict: [{ grant: 'READ', to: ['Manager', 'Admin'] }, { grant: 'UPDATE', to: ['Manager', 'Admin'] }]
     entity Assignments as projection on database.transaction.AssetAssignments;
     @readonly entity History     as projection on database.transaction.OwnershipLedgers;
     @readonly entity Maintenance as projection on database.transaction.MaintenanceRecords;
