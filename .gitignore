@@ -1,0 +1,15 @@
+node_modules/
+gen/
+mta_archives/
+*_mta_build_tmp
+*.mtar
+*.sqlite
+*.sqlite-*
+default-*.json
+.cdsrc-private.json
+.DS_Store
+@cds-models
+
+# approuter: local destination for hybrid testing (no secrets)
+!.deploy/app-router/default-env.json
+.deploy/app-router/node_modules/

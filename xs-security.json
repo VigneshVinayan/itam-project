@@ -1,0 +1,71 @@
+{
+  "xsappname": "itam-application",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Admin",
+      "description": "Admin: asset lifecycle and master data administration"
+    },
+    {
+      "name": "$XSAPPNAME.Manager",
+      "description": "Manager: dashboard, reports, PDF export / e-mail, read-only operations"
+    },
+    {
+      "name": "$XSAPPNAME.User",
+      "description": "User: hardware inventory, own assignments and history"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "Admin",
+      "description": "IT Asset Admin",
+      "scope-references": [
+        "$XSAPPNAME.Admin"
+      ]
+    },
+    {
+      "name": "Manager",
+      "description": "IT Asset Manager",
+      "scope-references": [
+        "$XSAPPNAME.Manager"
+      ]
+    },
+    {
+      "name": "User",
+      "description": "IT Asset User",
+      "scope-references": [
+        "$XSAPPNAME.User"
+      ]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "ITAM_Admin",
+      "description": "IT Asset Lifecycle Manager - Admin",
+      "role-template-references": [
+        "$XSAPPNAME.Admin"
+      ]
+    },
+    {
+      "name": "ITAM_Manager",
+      "description": "IT Asset Lifecycle Manager - Manager",
+      "role-template-references": [
+        "$XSAPPNAME.Manager"
+      ]
+    },
+    {
+      "name": "ITAM_User",
+      "description": "IT Asset Lifecycle Manager - User",
+      "role-template-references": [
+        "$XSAPPNAME.User"
+      ]
+    }
+  ],
+  "oauth2-configuration": {
+    "redirect-uris": [
+      "https://*.applicationstudio.cloud.sap/**",
+      "https://*.hana.ondemand.com/**",
+      "http://localhost:5000/**"
+    ]
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "_version": "1.89.0",
+  "sap.app": {
+    "id": "itam.auditlog",
+    "type": "application",
+    "title": "Report Audit Log",
+    "applicationVersion": {
+      "version": "1.0.0"
+    },
+    "dataSources": {
+      "mainService": {
+        "uri": "/odata/v4/admin/",
+        "type": "OData",
+        "settings": {
+          "annotations": [],
+          "odataVersion": "4.0"
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": false,
+    "dependencies": {
+      "minUI5Version": "1.153.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.fe.templates": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "routing": {
+      "config": {},
+      "routes": [
+        {
+          "pattern": ":?query:",
+          "name": "ReportLogsList",
+          "target": "ReportLogsList"
+        },
+        {
+          "pattern": "ReportLogs({key}):?query:",
+          "name": "ReportLogsObjectPage",
+          "target": "ReportLogsObjectPage"
+        }
+      ],
+      "targets": {
+        "ReportLogsList": {
+          "type": "Component",
+          "id": "ReportLogsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "contextPath": "/ReportLogs",
+              "variantManagement": "Page",
+              "initialLoad": "Enabled",
+              "navigation": {
+                "ReportLogs": {
+                  "detail": {
+                    "route": "ReportLogsObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "enableExport": true,
+                    "selectionMode": "Auto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ReportLogsObjectPage": {
+          "type": "Component",
+          "id": "ReportLogsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "contextPath": "/ReportLogs",
+              "controlConfiguration": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "sap.fiori": {
+    "registrationIds": [],
+    "archeType": "transactional"
+  },
+  "sap.fe": {
+    "app": {
+      "enableLazyLoading": true
+    }
+  }
+}

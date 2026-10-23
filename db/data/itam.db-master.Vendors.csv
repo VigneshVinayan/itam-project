@@ -1,0 +1,6 @@
+NODE_KEY,NAME,CONTACT_PERSON,EMAIL,PHONE,IS_ACTIVE
+35000000-0000-4000-8000-000000000001,Dell Technologies India,Rohit Sharma,orders@dell-india.example,+918000000001,true
+35000000-0000-4000-8000-000000000002,HP India Sales,Kavya Menon,sales@hp-india.example,+918000000002,true
+35000000-0000-4000-8000-000000000003,Lenovo India,Amit Singh,b2b@lenovo-india.example,+918000000003,true
+35000000-0000-4000-8000-000000000004,QuickFix IT Services,Deepa Joshi,service@quickfix.example,+918000000004,true
+35000000-0000-4000-8000-000000000005,Old Supplier Pvt Ltd,N/A,info@old-supplier.example,+918000000005,false

@@ -1,0 +1,187 @@
+Mandatory Changes (to align with the ER Diagram)
+1. Add Department Entity
+Your ER diagram contains:
+ 
+Plain Text
+ 
+ 
+department
+----------
+dept_id
+name
+cost_center
+Add:
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+entity Departments : managed {
+    key NODE_KEY : common.Guid;
+    NAME        : common.String64;
+    COST_CENTER : common.String64;
+}
+2. Change Employee Department Field
+Current
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+DEPARTMENT : common.String64;
+Change To
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+DEPARTMENT : Association to Departments;
+Why?
+The ER diagram shows a relationship:
+ 
+Plain Text
+ 
+ 
+Employee -> Department
+not a plain text field.
+3. Add ASSIGNED_BY in AssetAssignments
+ER Diagram
+ 
+Plain Text
+ 
+ 
+assigned_by
+Current
+Missing.
+Add
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+ASSIGNED_BY : Association to master.Employees;
+4. Add Missing Maintenance Fields
+Your ER diagram contains:
+ 
+Plain Text
+ 
+ 
+reported_by
+cost
+covered_by_warranty
+next_due_date
+Add:
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+REPORTED_BY         : Association to master.Employees;
+COST                : common.AmountT;
+COVERED_BY_WARRANTY : Boolean default false;
+NEXT_DUE_DATE       : Date;
+5. Replace ISSUE with DESCRIPTION
+Current
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+ISSUE : common.String255;
+ER Diagram
+ 
+Plain Text
+ 
+ 
+description
+Change
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+DESCRIPTION : common.String255;
+6. Rename RESOLUTION to OUTCOME
+Current
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+RESOLUTION : common.String255;
+ER Diagram
+ 
+Plain Text
+ 
+ 
+outcome
+Change
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+OUTCOME : common.String255;
+7. Rename COMPLIANCE_REFERENCE
+Current
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+COMPLIANCE_REFERENCE : common.String64;
+ER Diagram
+ 
+Plain Text
+ 
+ 
+disposal_cert_no
+Change
+ 
+Plain Text
+ 
+ 
+ 
+cds isn’t fully supported. Syntax highlighting is based on Plain Text.
+ 
+DISPOSAL_CERT_NO : common.String64;
+ 
+ 
+FR-027
+ 
+Admin can create and maintain departments
+ 
+Medium
+ 
+Department requires a unique identifier and name; cost_center is captured where applicable. Prevent deletion where employees reference the department; allow deactivation or reassignment instead.
+ 
+ 
+FR-028
+ 
+Authorized users can view department information and filter employee/asset views by department where permitted
+ 
+Medium
+ 
+Employee department is derived through Employee.dept_id; department filters must respect the signed-in role's access rights.
+ 
+ 

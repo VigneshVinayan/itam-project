@@ -1,0 +1,105 @@
+<mvc:View
+    controllerName="itam.reports.controller.Reports"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.f"
+    xmlns:l="sap.ui.layout"
+    xmlns:core="sap.ui.core"
+    displayBlock="true">
+
+    <!-- sap.m.App gives the DynamicPage a fixed-height container; without it the page keeps
+         toggling its scroll state, so the content disappears and comes back (flickers) -->
+    <App id="app">
+        <f:DynamicPage id="page" headerExpanded="true" busy="{view>/busy}">
+
+            <f:title>
+                <f:DynamicPageTitle>
+                    <f:heading>
+                        <Title text="{i18n>title}" wrapping="true" />
+                    </f:heading>
+                    <f:expandedContent>
+                        <Label text="{i18n>subtitle}" />
+                    </f:expandedContent>
+                    <f:actions>
+                        <Button id="exportButton" text="{i18n>exportPdf}" icon="sap-icon://pdf-attachment" type="Emphasized" press=".onExport" />
+                        <Button id="downloadButton" text="{i18n>downloadPdf}" icon="sap-icon://download" press=".onDownload"
+                            enabled="{= !!${view>/export/downloadUrl} }" />
+                        <Button id="emailButton" text="{i18n>emailPdf}" icon="sap-icon://email" press=".onOpenEmail" />
+                    </f:actions>
+                </f:DynamicPageTitle>
+            </f:title>
+
+            <!-- ================= Report + filters (FR-026: same filters as the dashboard) ================= -->
+            <f:header>
+                <f:DynamicPageHeader pinnable="true">
+                    <VBox>
+                        <HBox wrap="Wrap" alignItems="End">
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>reportType}" labelFor="reportType" required="true" />
+                                <Select id="reportType" selectedKey="{view>/filters/reportType}" width="14rem"
+                                    items="{path: '/ReportTypes', templateShareable: false}" change=".onPreview">
+                                    <core:Item key="{code}" text="{text}" />
+                                </Select>
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterStatus}" labelFor="status" />
+                                <Select id="status" selectedKey="{view>/filters/status}" forceSelection="false" width="11rem"
+                                    items="{path: '/AssetStatuses', templateShareable: false}">
+                                    <core:Item key="{code}" text="{text}" />
+                                </Select>
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterCategory}" labelFor="category" />
+                                <Select id="category" selectedKey="{view>/filters/category}" forceSelection="false" width="11rem"
+                                    items="{path: '/Categories', parameters: {$orderby: 'NAME'}, templateShareable: false}">
+                                    <core:Item key="{NODE_KEY}" text="{NAME}" />
+                                </Select>
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterLocation}" labelFor="location" />
+                                <Input id="location" value="{view>/filters/location}" width="11rem" submit=".onPreview" />
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterDateFrom}" labelFor="dateFrom" />
+                                <DatePicker id="dateFrom" value="{view>/filters/dateFrom}" valueFormat="yyyy-MM-dd" width="10rem" />
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterDateTo}" labelFor="dateTo" />
+                                <DatePicker id="dateTo" value="{view>/filters/dateTo}" valueFormat="yyyy-MM-dd" width="10rem" />
+                            </VBox>
+                            <VBox class="sapUiTinyMarginBottom">
+                                <HBox>
+                                    <Button text="{i18n>preview}" icon="sap-icon://show" type="Emphasized" press=".onPreview" class="sapUiTinyMarginEnd" />
+                                    <Button text="{i18n>clear}" press=".onClear" />
+                                </HBox>
+                            </VBox>
+                        </HBox>
+                        <Text text="{i18n>dateHint}" class="sapUiTinyMarginTop" />
+                    </VBox>
+                </f:DynamicPageHeader>
+            </f:header>
+
+            <f:content>
+                <VBox>
+                    <!-- export / e-mail status (FR-023: success / failure is always shown) -->
+                    <MessageStrip text="{view>/message/text}" type="{view>/message/type}" showIcon="true" showCloseButton="true"
+                        visible="{= !!${view>/message/text} }" class="sapUiSmallMarginBottom" />
+
+                    <MessageStrip text="{view>/limitText}" type="Warning" showIcon="true"
+                        visible="{= !!${view>/limitText} }" class="sapUiSmallMarginBottom" />
+
+                    <Table id="previewTable" growing="true" growingThreshold="50" sticky="ColumnHeaders"
+                        noDataText="{i18n>previewEmpty}" popinLayout="GridSmall">
+                        <headerToolbar>
+                            <OverflowToolbar>
+                                <Title text="{view>/previewTitle}" level="H2" />
+                                <ToolbarSpacer />
+                                <Text text="{view>/preview/filters}" />
+                            </OverflowToolbar>
+                        </headerToolbar>
+                    </Table>
+                </VBox>
+            </f:content>
+        </f:DynamicPage>
+    </App>
+</mvc:View>

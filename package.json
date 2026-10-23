@@ -1,0 +1,108 @@
+{
+  "name": "itam-application",
+  "version": "1.0.0",
+  "description": "IT Asset Lifecycle Manager - SAP CAP Node.js",
+  "type": "module",
+  "dependencies": {
+    "@cap-js/hana": "^3",
+    "@sap/cds": "^10"
+  },
+  "devDependencies": {
+    "@cap-js/cds-test": "^1",
+    "@cap-js/sqlite": "^3",
+    "@sap/cds-dk": "^10"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch",
+    "test": "CDS_ENV=test node --test test/itam.test.js",
+    "build:apps": "mkdir -p gen/srv/app && cp -r app/index.html app/dashboard app/reports app/assets app/overview app/employees app/categories app/vendors app/auditlog app/inventory app/myassets app/myhistory gen/srv/app/"
+  },
+  "cds": {
+    "requires": {
+      "db": "hana",
+      "auth": "dummy",
+      "mail": {
+        "impl": "srv/mail-service.js"
+      },
+      "[hybrid]": {
+        "db": "hana",
+        "auth": "dummy"
+      },
+      "[development]": {
+        "db": {
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          }
+        },
+        "auth": {
+          "kind": "mocked",
+          "users": {
+            "admin@itam-demo.com": {
+              "password": "admin",
+              "roles": [
+                "Admin"
+              ]
+            },
+            "manager@itam-demo.com": {
+              "password": "manager",
+              "roles": [
+                "Manager"
+              ]
+            },
+            "ravi.kumar@itam-demo.com": {
+              "password": "user",
+              "roles": [
+                "User"
+              ]
+            }
+          }
+        }
+      },
+      "[test]": {
+        "db": {
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          }
+        },
+        "auth": {
+          "kind": "mocked",
+          "users": {
+            "admin@itam-demo.com": {
+              "password": "admin",
+              "roles": [
+                "Admin"
+              ]
+            },
+            "manager@itam-demo.com": {
+              "password": "manager",
+              "roles": [
+                "Manager"
+              ]
+            },
+            "ravi.kumar@itam-demo.com": {
+              "password": "user",
+              "roles": [
+                "User"
+              ]
+            },
+            "alice": false,
+            "bob": false,
+            "carol": false,
+            "dave": false,
+            "erin": false,
+            "fred": false,
+            "me": false,
+            "yves": false,
+            "*": false
+          }
+        }
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

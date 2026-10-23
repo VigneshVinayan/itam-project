@@ -1,0 +1,215 @@
+<mvc:View
+    controllerName="itam.dashboard.controller.Dashboard"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.f"
+    xmlns:card="sap.f.cards"
+    xmlns:l="sap.ui.layout"
+    xmlns:core="sap.ui.core"
+    xmlns:mc="sap.suite.ui.microchart"
+    xmlns:app="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1"
+    displayBlock="true">
+
+    <!-- sap.m.App gives the DynamicPage a fixed-height container; without it the page keeps
+         toggling its scroll state, so the content disappears and comes back (flickers) -->
+    <App id="app">
+        <f:DynamicPage id="page" headerExpanded="true" toggleHeaderOnTitleClick="true" busy="{view>/busy}">
+
+            <!-- ================= Title ================= -->
+            <f:title>
+                <f:DynamicPageTitle>
+                    <f:heading>
+                        <Title text="{i18n>title}" wrapping="true" />
+                    </f:heading>
+                    <f:expandedContent>
+                        <Label text="{i18n>subtitle}" />
+                    </f:expandedContent>
+                    <f:snappedContent>
+                        <Label text="{= ${i18n>kpiTotal} + ': ' + ${kpi>/totalAssets} + '   ·   ' + ${i18n>kpiUtilisation} + ': ' + ${kpi>/utilisationPct} + ' %' }" />
+                    </f:snappedContent>
+                    <f:actions>
+                        <Button text="{i18n>refresh}" icon="sap-icon://refresh" type="Transparent" press=".onRefresh" />
+                    </f:actions>
+                </f:DynamicPageTitle>
+            </f:title>
+
+            <!-- ================= Filters (FR-026) + KPI tiles (FR-021) ================= -->
+            <f:header>
+                <f:DynamicPageHeader pinnable="true">
+                    <VBox>
+                        <HBox wrap="Wrap" alignItems="End" class="sapUiSmallMarginBottom">
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterStatus}" labelFor="status" />
+                                <Select id="status" selectedKey="{view>/filters/status}" forceSelection="false" width="11rem"
+                                    items="{path: '/AssetStatuses', templateShareable: false}">
+                                    <core:Item key="{code}" text="{text}" />
+                                </Select>
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterCategory}" labelFor="category" />
+                                <Select id="category" selectedKey="{view>/filters/category}" forceSelection="false" width="11rem"
+                                    items="{path: '/Categories', parameters: {$orderby: 'NAME'}, templateShareable: false}">
+                                    <core:Item key="{NODE_KEY}" text="{NAME}" />
+                                </Select>
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterLocation}" labelFor="location" />
+                                <Input id="location" value="{view>/filters/location}" width="11rem" submit=".onApply" />
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterDateFrom}" labelFor="dateFrom" />
+                                <DatePicker id="dateFrom" value="{view>/filters/dateFrom}" valueFormat="yyyy-MM-dd" width="10rem" />
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="{i18n>filterDateTo}" labelFor="dateTo" />
+                                <DatePicker id="dateTo" value="{view>/filters/dateTo}" valueFormat="yyyy-MM-dd" width="10rem" />
+                            </VBox>
+                            <VBox class="sapUiTinyMarginBottom">
+                                <HBox>
+                                    <Button text="{i18n>apply}" type="Emphasized" icon="sap-icon://filter" press=".onApply" class="sapUiTinyMarginEnd" />
+                                    <Button text="{i18n>clear}" press=".onClear" />
+                                </HBox>
+                            </VBox>
+                        </HBox>
+
+                        <HBox wrap="Wrap" renderType="Bare">
+                            <GenericTile header="{i18n>kpiTotal}" subheader="{i18n>kpiTotalSub}" press=".onNavigate" app:status=""
+                                class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+                                <TileContent footer="{i18n>openAssets}">
+                                    <NumericContent withMargin="false" icon="sap-icon://laptop" value="{path: 'kpi>/totalAssets', formatter: '.formatCount'}" valueColor="Neutral" />
+                                </TileContent>
+                            </GenericTile>
+                            <GenericTile header="{i18n>kpiUtilisation}" subheader="{i18n>kpiUtilisationSub}" press=".onNavigate" app:status="ASSIGNED"
+                                class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+                                <TileContent footer="{= (${kpi>/assigned} || 0) + ' assigned' }">
+                                    <NumericContent withMargin="false" icon="sap-icon://pie-chart" scale="%"
+                                        value="{path: 'kpi>/utilisationPct', formatter: '.formatCount'}"
+                                        valueColor="{= ${kpi>/utilisationPct} >= 60 ? 'Good' : 'Critical' }" />
+                                </TileContent>
+                            </GenericTile>
+                            <GenericTile header="{i18n>kpiAvailable}" subheader="{i18n>kpiAvailableSub}" press=".onNavigate" app:status="AVAILABLE"
+                                class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+                                <TileContent footer="{i18n>openAssets}">
+                                    <NumericContent withMargin="false" icon="sap-icon://accept" value="{path: 'kpi>/available', formatter: '.formatCount'}" valueColor="Good" />
+                                </TileContent>
+                            </GenericTile>
+                            <GenericTile header="{i18n>kpiOverdue}" subheader="{i18n>kpiOverdueSub}" press=".onNavigate" app:status="ASSIGNED"
+                                class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+                                <TileContent footer="{= ${kpi>/overdueReturns} > 0 ? 'Follow up with holders' : 'All on time' }">
+                                    <NumericContent withMargin="false" icon="sap-icon://lead-outdated"
+                                        value="{path: 'kpi>/overdueReturns', formatter: '.formatCount'}"
+                                        valueColor="{= ${kpi>/overdueReturns} > 0 ? 'Error' : 'Good' }" />
+                                </TileContent>
+                            </GenericTile>
+                            <GenericTile header="{i18n>kpiMaintenance}" subheader="{i18n>kpiMaintenanceSub}" press=".onNavigate" app:status="MAINTENANCE"
+                                class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+                                <TileContent footer="{i18n>openAssets}">
+                                    <NumericContent withMargin="false" icon="sap-icon://wrench"
+                                        value="{path: 'kpi>/openMaintenance', formatter: '.formatCount'}"
+                                        valueColor="{= ${kpi>/openMaintenance} > 0 ? 'Critical' : 'Good' }" />
+                                </TileContent>
+                            </GenericTile>
+                            <GenericTile header="{i18n>kpiEndOfLife}" subheader="{i18n>kpiEndOfLifeSub}" press=".onNavigate" app:status=""
+                                class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+                                <TileContent footer="Plan replacements">
+                                    <NumericContent withMargin="false" icon="sap-icon://past"
+                                        value="{path: 'kpi>/endOfLifeSoon', formatter: '.formatCount'}"
+                                        valueColor="{= ${kpi>/endOfLifeSoon} > 0 ? 'Critical' : 'Good' }" />
+                                </TileContent>
+                            </GenericTile>
+                            <GenericTile header="{i18n>kpiValue}" subheader="{i18n>kpiValueSub}" press=".onNavigate" app:status=""
+                                class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+                                <TileContent footer="{kpi>/currency}">
+                                    <NumericContent withMargin="false" icon="sap-icon://money-bills" truncateValueTo="10"
+                                        value="{path: 'kpi>/totalValue', formatter: '.formatAmount'}" valueColor="Neutral" />
+                                </TileContent>
+                            </GenericTile>
+                        </HBox>
+                        <Text text="{path: 'kpi>/generatedAt', formatter: '.formatGenerated'}" class="sapUiTinyMarginTop" />
+                    </VBox>
+                </f:DynamicPageHeader>
+            </f:header>
+
+            <!-- ================= Charts + table equivalent (NFR-011) ================= -->
+            <f:content>
+                <l:Grid defaultSpan="XL4 L4 M6 S12" vSpacing="1" hSpacing="1" containerQuery="true">
+
+                    <f:Card width="100%">
+                        <f:header>
+                            <card:Header title="{i18n>chartStatus}" subtitle="{i18n>chartStatusSub}" iconSrc="sap-icon://donut-chart" />
+                        </f:header>
+                        <f:content>
+                            <mc:InteractiveDonutChart id="statusChart" class="sapUiSmallMargin" displayedSegments="5"
+                                selectionChanged=".onStatusSegment"
+                                segments="{path: 'kpi>/byStatus', templateShareable: false}">
+                                <mc:segments>
+                                    <mc:InteractiveDonutChartSegment label="{kpi>label}" value="{kpi>count}"
+                                        displayedValue="{kpi>count}" app:code="{kpi>code}" />
+                                </mc:segments>
+                            </mc:InteractiveDonutChart>
+                        </f:content>
+                    </f:Card>
+
+                    <f:Card width="100%">
+                        <f:header>
+                            <card:Header title="{i18n>chartCategory}" subtitle="{i18n>chartCategorySub}" iconSrc="sap-icon://horizontal-bar-chart" />
+                        </f:header>
+                        <f:content>
+                            <mc:InteractiveBarChart id="categoryChart" class="sapUiSmallMargin" displayedBars="8"
+                                selectionEnabled="false"
+                                bars="{path: 'kpi>/byCategory', templateShareable: false}">
+                                <mc:bars>
+                                    <mc:InteractiveBarChartBar label="{kpi>label}" value="{kpi>count}" displayedValue="{kpi>count}" />
+                                </mc:bars>
+                            </mc:InteractiveBarChart>
+                        </f:content>
+                    </f:Card>
+
+                    <f:Card width="100%">
+                        <f:header>
+                            <card:Header title="{i18n>chartLocation}" subtitle="{i18n>chartLocationSub}" iconSrc="sap-icon://map-2" />
+                        </f:header>
+                        <f:content>
+                            <mc:InteractiveBarChart id="locationChart" class="sapUiSmallMargin" displayedBars="8"
+                                selectionEnabled="false"
+                                bars="{path: 'kpi>/byLocation', templateShareable: false}">
+                                <mc:bars>
+                                    <mc:InteractiveBarChartBar label="{kpi>label}" value="{kpi>count}" displayedValue="{kpi>count}" />
+                                </mc:bars>
+                            </mc:InteractiveBarChart>
+                        </f:content>
+                    </f:Card>
+
+                    <!-- the same numbers as text: readable without colours / charts -->
+                    <f:Card width="100%">
+                        <f:layoutData><l:GridData span="XL12 L12 M12 S12" /></f:layoutData>
+                        <f:header>
+                            <card:Header title="{i18n>tableTitle}" subtitle="{i18n>tableTitleSub}" iconSrc="sap-icon://table-view" />
+                        </f:header>
+                        <f:content>
+                            <Table id="kpiTable" items="{path: 'view>/rows'}" popinLayout="GridSmall">
+                                <columns>
+                                    <Column width="10rem"><Text text="{i18n>colGroup}" /></Column>
+                                    <Column><Text text="{i18n>colLabel}" /></Column>
+                                    <Column hAlign="End" width="8rem"><Text text="{i18n>colCount}" /></Column>
+                                    <Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colValue}" /></Column>
+                                </columns>
+                                <items>
+                                    <ColumnListItem>
+                                        <cells>
+                                            <Text text="{view>group}" />
+                                            <Text text="{view>label}" />
+                                            <ObjectNumber number="{view>count}" emphasized="true" />
+                                            <ObjectNumber number="{path: 'view>value', formatter: '.formatAmount'}" unit="{kpi>/currency}" />
+                                        </cells>
+                                    </ColumnListItem>
+                                </items>
+                            </Table>
+                        </f:content>
+                    </f:Card>
+
+                </l:Grid>
+            </f:content>
+        </f:DynamicPage>
+    </App>
+</mvc:View>

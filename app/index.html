@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IT Asset Lifecycle Manager</title>
+
+    <!-- SAP Fiori launchpad (sandbox): tiles depend on the role of the logged-in user -->
+    <script>
+        (function () {
+            // small synchronous GET (needed before the launchpad starts)
+            var get = function (url, fallback) {
+                try {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("GET", url, false);
+                    xhr.setRequestHeader("Accept", "application/json");
+                    xhr.send();
+                    if (xhr.status === 200) return JSON.parse(xhr.responseText);
+                } catch (e) { /* ignore */ }
+                return fallback;
+            };
+
+            // who is logged in (XSUAA login via approuter) + KPI numbers for the tiles
+            var me = get("/odata/v4/app/whoAmI()", { name: "User", email: "", isAdmin: false, isManager: false, isUser: false });
+            var kpi = get("/odata/v4/app/tileKpis()", {});
+            var n = function (value) { return value === null || value === undefined ? "" : String(value); };
+
+            var applications = {};
+            var tiles = [];
+
+            // one app (navigation target) + optionally its launchpad tile (icon + KPI number)
+            var addApp = function (intent, component, title, subtitle, icon, number, info, state, noTile) {
+                applications[intent] = {
+                    title: title,
+                    description: subtitle,
+                    additionalInformation: "SAPUI5.Component=itam." + component,
+                    applicationType: "URL",
+                    url: "./" + component + "/webapp",
+                    navigationMode: "embedded"
+                };
+                if (noTile) return;
+                tiles.push({
+                    id: "itam_tile_" + component,
+                    title: title,
+                    size: "1x1",
+                    // no KPI number: static tile (a dynamic tile would show "0")
+                    tileType: number === null || number === undefined ? "sap.ushell.ui.tile.StaticTile" : "sap.ushell.ui.tile.DynamicTile",
+                    properties: {
+                        chipId: "itam_chip_" + component,
+                        title: title,
+                        subtitle: subtitle,
+                        info: info,
+                        icon: icon,
+                        numberValue: n(number),
+                        numberState: state || "Neutral",
+                        targetURL: "#" + intent
+                    }
+                });
+            };
+
+            // Admin + Manager: dashboard, reports and the read-only asset overview (dashboard drill-down)
+            if (me.isAdmin || me.isManager) {
+                addApp("Asset-dashboard", "dashboard", "Asset Dashboard", "KPIs and charts",
+                    "sap-icon://business-objects-experience", kpi.overdueReturns,
+                    kpi.overdueReturns > 0 ? "Overdue returns" : "No overdue returns",
+                    kpi.overdueReturns > 0 ? "Error" : "Good");
+                addApp("Report-manage", "reports", "Reports & Export", "PDF export, download, e-mail",
+                    "sap-icon://pdf-attachment", null, "Asset reports");
+                addApp("Asset-overview", "overview", "Asset Overview", "Read-only asset list",
+                    "sap-icon://inspection", kpi.assignedAssets, "Assigned assets", null, me.isAdmin);
+            }
+
+            // Admin: lifecycle + master data
+            if (me.isAdmin) {
+                addApp("Asset-manage", "assets", "Manage Assets", "Assign, transfer, return, retire",
+                    "sap-icon://laptop", kpi.availableAssets, "Available assets", "Good");
+                addApp("Employee-manage", "employees", "Employees", "Master data",
+                    "sap-icon://employee", kpi.employees, "Active employees");
+                addApp("AssetCategory-manage", "categories", "Asset Categories", "Master data",
+                    "sap-icon://product", kpi.categories, "Active categories");
+                addApp("Vendor-manage", "vendors", "Vendors", "Master data",
+                    "sap-icon://supplier", kpi.vendors, "Active vendors");
+                addApp("Report-audit", "auditlog", "Report Audit Log", "Exports, downloads, e-mails",
+                    "sap-icon://history", null, "Audit trail");
+            }
+
+            // User: inventory and own assets / history
+            if (me.isUser) {
+                addApp("Asset-inventory", "inventory", "Hardware Inventory", "Search all hardware",
+                    "sap-icon://inspection", kpi.availableAssets, "Available assets");
+                addApp("Asset-mine", "myassets", "My Assignments", "Assets assigned to me",
+                    "sap-icon://laptop", kpi.myAssets, "Assets I hold");
+                addApp("AssetHistory-mine", "myhistory", "My Asset History", "Hand-overs and returns",
+                    "sap-icon://history", null, "Ownership history");
+            }
+
+            // used after start-up (see below)
+            window.itamTiles = tiles;
+
+            var names = String(me.name || me.email || "User").split(" ");
+
+            window["sap-ushell-config"] = {
+                defaultRenderer: "fiori2",
+                services: {
+                    // real user in the shell header instead of "Default User"
+                    Container: {
+                        adapter: {
+                            config: {
+                                id: me.email || me.user || "USER",
+                                firstName: names[0],
+                                lastName: names.slice(1).join(" "),
+                                fullName: me.name || me.email,
+                                email: me.email
+                            }
+                        }
+                    },
+                    EndUserFeedback: { config: { enabled: false } }
+                },
+                renderers: {
+                    fiori2: {
+                        componentData: {
+                            config: {
+                                enableNotificationsUI: false,
+                                enableNotifications: false,
+                                enableSearch: false,
+                                enablePersonalization: false,
+                                enableSetTheme: true,
+                                enableSetLanguage: true
+                            }
+                        }
+                    }
+                },
+                applications: applications
+            };
+        }());
+    </script>
+
+    <script id="sap-ushell-bootstrap" src="https://sapui5.hana.ondemand.com/1.153.0/test-resources/sap/ushell/bootstrap/sandbox.js"></script>
+
+    <script id="sap-ui-bootstrap"
+        src="https://sapui5.hana.ondemand.com/1.153.0/resources/sap-ui-core.js"
+        data-sap-ui-libs="sap.ui.core, sap.ushell, sap.fe.templates, sap.suite.ui.microchart"
+        data-sap-ui-compat-version="edge"
+        data-sap-ui-theme="sap_horizon"
+        data-sap-ui-async="true"
+        data-sap-ui-frame-options="allow"
+        data-sap-ui-preload="async"></script>
+
+    <script>
+        sap.ui.getCore().attachInit(function () {
+
+            // The sandbox puts one tile per application into its "generated group" and adds
+            // demo groups ("Sample Applications"). Keep only the generated group and give it
+            // our tiles with icon + KPI number.
+            var services = window["sap-ushell-config"].services || {};
+            ["FlpLaunchPage", "LaunchPage"].forEach(function (name) {
+                var config = services[name] && services[name].adapter && services[name].adapter.config;
+                if (config && config.groups) {
+                    config.groups = config.groups.filter(function (group) {
+                        return group.id === "sap_ushell_generated_group_id";
+                    });
+                    config.groups.forEach(function (group) {
+                        group.title = "IT Asset Lifecycle Manager";
+                        group.isGroupLocked = true;
+                        group.tiles = window.itamTiles;
+                    });
+                }
+            });
+
+            // "Sign Out" in the user menu logs out of XSUAA via the approuter
+            sap.ushell.Container.registerLogout(function () {
+                window.location.href = "/do/logout";
+                return new Promise(function () {});   // keep waiting: the browser is leaving the page
+            });
+
+            sap.ushell.Container.createRenderer("fiori2", true).then(function (renderer) {
+                renderer.placeAt("content");
+            });
+        });
+    </script>
+</head>
+<body class="sapUiBody sapUiSizeCompact" id="content"></body>
+</html>
