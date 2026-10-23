@@ -21,6 +21,7 @@ annotate db.transaction.Assets with {
     RETIREMENT_REASON       @title: '{i18n>RetirementReason}';
     CONDITION               @title: '{i18n>Condition}';
     DISPOSAL_METHOD         @title: '{i18n>DisposalMethod}';
+    MANAGING_DEPARTMENT     @title: 'Managing Department' @Common.Text: MANAGING_DEPARTMENT.NAME @Common.TextArrangement: #TextOnly;
     CATEGORY                @title: '{i18n>Category}'       @Common.Text: CATEGORY.NAME            @Common.TextArrangement: #TextOnly;
     VENDOR                  @title: '{i18n>Vendor}'         @Common.Text: VENDOR.NAME              @Common.TextArrangement: #TextOnly;
     CURRENT_HOLDER          @title: '{i18n>CurrentHolder}'  @Common.Text: CURRENT_HOLDER.FULL_NAME @Common.TextArrangement: #TextOnly;
@@ -259,7 +260,7 @@ annotate AssetAdminService.Assets with @(
         Description    : { Value: ASSET_NAME }
     },
     // FR-018: search and filter by asset no., serial, category, status, owner, vendor, location
-    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, LOCATION ],
+    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, MANAGING_DEPARTMENT_NODE_KEY, LOCATION ],
     UI.PresentationVariant: { SortOrder: [{ Property: ASSET_TAG }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { $Type: 'UI.DataFieldForAction', Action: 'AssetAdminService.assignAsset',         Label: '{i18n>AssignAsset}' },
@@ -572,7 +573,7 @@ annotate AssetManagerService.Assets with @(
         Title          : { Value: ASSET_TAG },
         Description    : { Value: ASSET_NAME }
     },
-    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, LOCATION ],
+    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, MANAGING_DEPARTMENT_NODE_KEY, LOCATION ],
     UI.PresentationVariant: { SortOrder: [{ Property: ASSET_TAG }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { Value: ASSET_TAG, ![@UI.Importance]: #High, ![@HTML5.CssDefaults]: { width: '7rem' } },
