@@ -53,6 +53,9 @@ export default cds.service.impl(async function () {
         if (!req.user.is('Admin')) {
             const employee = await currentEmployee(req);
             if (!employee?.DEPARTMENT_NODE_KEY) req.reject(403, 'Manager must belong to a department.');
+            if (filters.departmentScope && filters.departmentScope !== employee.DEPARTMENT_NODE_KEY) {
+                req.reject(403, 'Managers can only select their own department.');
+            }
             filters.departmentScope = employee.DEPARTMENT_NODE_KEY;
         }
         return filters;
