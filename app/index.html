@@ -91,8 +91,8 @@
 
             // User: inventory and own assets / history
             if (me.isUser) {
-                addApp("Asset-inventory", "inventory", "Hardware Inventory", "Search all hardware",
-                    "sap-icon://inspection", kpi.availableAssets, "Available assets");
+                addApp("Asset-inventory", "inventory", "My Hardware", "Assets currently issued to me",
+                    "sap-icon://inspection", kpi.myAssets, "My assigned assets");
                 addApp("Asset-mine", "myassets", "My Assignments", "Assets assigned to me",
                     "sap-icon://laptop", kpi.myAssets, "Assets I hold");
                 addApp("Employee-profile", "myprofile", "My Profile", "View your employee information",
