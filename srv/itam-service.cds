@@ -242,7 +242,8 @@ service AssetManagerService {
         category : UUID,
         location : String,
         dateFrom : Date,
-        dateTo   : Date
+        dateTo   : Date,
+        department : UUID
     ) returns Dashboard;
 
     // ---------------- Reports (FR-022 .. FR-024, FR-026) ----------------
@@ -267,7 +268,8 @@ service AssetManagerService {
         category   : UUID,
         location   : String,
         dateFrom   : Date,
-        dateTo     : Date
+        dateTo     : Date,
+        department : UUID
     ) returns ReportPreview;
 
     type ExportResult {
@@ -302,6 +304,7 @@ service AssetManagerService {
         location   : String,
         dateFrom   : Date,
         dateTo     : Date,
+        department : UUID,
         recipients : String,     // comma-separated
         requestId  : String      // idempotency key: same key = no second e-mail
     ) returns EmailResult;
