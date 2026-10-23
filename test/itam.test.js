@@ -423,7 +423,7 @@ describe('Asset lifecycle (FR-003 .. FR-012)', () => {
         assert.equal(asset.STATUS, 'ARCHIVED');
 
         const { data } = await GET(`${ADM}/Archive?$filter=ASSET_NODE_KEY eq ${key}`, ADMIN);
-        assert.equal(data.value[0].COMPLIANCE_REFERENCE, 'EW-2026-200');
+        assert.equal(data.value[0].DISPOSAL_CERT_NO, 'EW-2026-200');
         assert.equal(data.value[0].ARCHIVED_BY, 'admin@itam-demo.com');
 
         await fails(POST(`${active('Assets', key)}/AssetAdminService.draftEdit`, { PreserveChanges: true }, ADMIN), 409, /archived/);
