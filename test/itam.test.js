@@ -230,7 +230,8 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
 
         const { data } = await POST(`${MGR}/emailReport`,
             { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com; head.procurement@itam-demo.com', requestId: 'req-1' }, ADMIN);
-        assert.equal(data.status, 'SENT');
+        assert.equal(data.status, 'SIMULATED');
+        assert.match(data.message, /not delivered/i);
         assert.equal(mail.sent.length, sentBefore + 1);
 
         const sent = mail.sent.at(-1);
@@ -264,7 +265,7 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         failing = false;
         const { data: retried } = await POST(`${MGR}/emailReport`,
             { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, ADMIN);
-        assert.equal(retried.status, 'SENT');
+        assert.equal(retried.status, 'SIMULATED');
     });
 
     it('audits export, download and e-mail without storing report contents (NFR-012)', async () => {
@@ -272,7 +273,7 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         const actions = data.value.map(l => `${l.ACTION}:${l.OUTCOME}`);
         assert.ok(actions.includes('EXPORT:SUCCESS'));
         assert.ok(actions.includes('DOWNLOAD:SUCCESS'));
-        assert.ok(actions.includes('EMAIL:SUCCESS'));
+        assert.ok(actions.includes('EMAIL:SIMULATED'));
         assert.ok(actions.includes('EMAIL:FAILED'));
         assert.ok(data.value.every(l => l.REQUESTED_BY === 'admin@itam-demo.com'));
         assert.ok(!('CONTENT' in data.value[0]));
