@@ -18,6 +18,34 @@ export default cds.service.impl(async function () {
     const { ReportFiles } = this.entities;
     const { ReportFiles: ReportFilesDb, ReportLogs } = cds.entities('itam.db.reporting');
 
+    // Fail closed on row-level reads: Managers see only their department's
+    // employees and the lifecycle records of assets held by that department.
+    this.before('READ', ['Assets', 'Assignments', 'History', 'Maintenance', 'AssetRequests', 'Employees'], async req => {
+        if (req.user.is('Admin')) return;
+        const self = await currentEmployee(req);
+        if (!self?.DEPARTMENT_NODE_KEY) req.reject(403, 'Manager department is not configured.');
+        const colleagues = await SELECT.from(Employees).columns('NODE_KEY')
+            .where({ DEPARTMENT_NODE_KEY: self.DEPARTMENT_NODE_KEY });
+        const employeeIds = colleagues.map(e => e.NODE_KEY);
+        if (!employeeIds.length) req.reject(403, 'No employees in assigned department.');
+        const entity = req.target.name.split('.').pop();
+        if (entity === 'Employees') {
+            req.query.where({ NODE_KEY: { in: employeeIds } });
+            return;
+        }
+        if (entity === 'AssetRequests') {
+            req.query.where({ REQUESTED_BY_NODE_KEY: { in: employeeIds } });
+            return;
+        }
+        const deptAssets = await SELECT.from(Assets).columns('NODE_KEY')
+            .where({ CURRENT_HOLDER_NODE_KEY: { in: employeeIds } });
+        const assetIds = deptAssets.map(a => a.NODE_KEY);
+        if (!assetIds.length) req.reject(403, 'No assets assigned to the department.');
+        req.query.where(entity === 'Assets'
+            ? { NODE_KEY: { in: assetIds } }
+            : { ASSET_NODE_KEY: { in: assetIds } });
+    });
+
     async function securedFilters(req) {
         const filters = readFilters(req);
         if (!req.user.is('Admin')) {
