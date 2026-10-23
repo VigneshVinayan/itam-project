@@ -16,7 +16,7 @@
     "start": "cds-serve",
     "watch": "cds watch",
     "test": "CDS_ENV=test node --test test/itam.test.js",
-    "build:apps": "mkdir -p gen/srv/app && cp -r app/index.html app/dashboard app/manageractions app/reports app/assets app/overview app/employees app/departments app/categories app/vendors app/auditlog app/inventory app/myassets app/myhistory app/myrequests gen/srv/app/"
+    "build:apps": "mkdir -p gen/srv/app && cp -r app/index.html app/dashboard app/manageractions app/reports app/assets app/overview app/employees app/departments app/categories app/vendors app/auditlog app/inventory app/myassets app/myhistory app/myprofile app/myrequests gen/srv/app/"
   },
   "cds": {
     "requires": {
