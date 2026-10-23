@@ -340,7 +340,11 @@ service AssetUserService {
     @readonly
     @restrict: [{ grant: 'READ', where: 'REQUESTED_BY_EMAIL = $user' }]
     entity AssetRequests as projection on database.transaction.AssetRequests {
-        *, REQUESTED_BY.EMAIL as REQUESTED_BY_EMAIL : String(255)
+        *,
+        REQUESTED_BY.EMAIL as REQUESTED_BY_EMAIL : String(255),
+        ASSET.ASSET_TAG as ASSET_TAG,
+        ASSET.ASSET_NAME as ASSET_NAME,
+        RESOLVED_BY.FULL_NAME as REVIEWED_BY_NAME
     };
 
     // Submits a request; no direct asset-state change is permitted.
