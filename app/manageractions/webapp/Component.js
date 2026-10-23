@@ -28,6 +28,8 @@ sap.ui.define([
     createContent: function () {
       const assets = new Select({ width: '100%' });
       const employees = new Select({ width: '100%' });
+      const detailsAsset = new Select({ width: '100%' });
+      const requestAsset = new Select({ width: '100%' });
       const assignments = new Select({ width: '100%' });
       const requests = new Select({ width: '100%' });
       const comment = new TextArea({ width: '100%', rows: 2, placeholder: 'Reason / remarks / maintenance issue' });
@@ -50,16 +52,19 @@ sap.ui.define([
         const [a, e, b, r] = await Promise.all([
           call('Assets?$select=NODE_KEY,ASSET_TAG,ASSET_NAME,STATUS,LOCATION'),
           call('Employees?$select=NODE_KEY,FULL_NAME'),
-          call('Assignments?$select=NODE_KEY,ASSET_NODE_KEY,ASSIGNMENT_STATUS'),
+          call('Assignments?$select=NODE_KEY,ASSET_NODE_KEY,EMPLOYEE_NODE_KEY,ASSIGNMENT_STATUS'),
           call('AssetRequests?$select=NODE_KEY,REQUEST_TYPE,STATUS,DESCRIPTION&$orderby=REQUESTED_AT desc')
         ]);
         assetRows = a.value || [];
         employeeRows = e.value || [];
         populate(assets, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME + ' (' + v.STATUS + ')');
+        populate(detailsAsset, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME);
+        populate(requestAsset, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME);
         populate(employees, e.value || [], 'NODE_KEY', v => v.FULL_NAME);
         populate(assignments, (b.value || []).filter(v => v.ASSIGNMENT_STATUS === 'ACTIVE'), 'NODE_KEY', v => {
           const tag = assetRows.find(a => a.NODE_KEY === v.ASSET_NODE_KEY)?.ASSET_TAG || 'Asset';
-          return tag + ' — Active assignment';
+          const who = employeeRows.find(e => e.NODE_KEY === v.EMPLOYEE_NODE_KEY)?.FULL_NAME || 'Employee';
+          return tag + ' — ' + who;
         });
         populate(requests, (r.value || []).filter(v => v.STATUS === 'PENDING'), 'NODE_KEY',
           v => v.REQUEST_TYPE + ': ' + (v.DESCRIPTION || v.NODE_KEY));
@@ -70,7 +75,7 @@ sap.ui.define([
             description: item.DESCRIPTION || item.NODE_KEY
           }));
         }
-        const selected = (a.value || []).find(v => v.NODE_KEY === assets.getSelectedKey());
+        const selected = (a.value || []).find(v => v.NODE_KEY === detailsAsset.getSelectedKey());
         if (selected) { location.setValue(selected.LOCATION || ''); assetName.setValue(selected.ASSET_NAME || ''); }
       };
       const invoke = async (action, payload) => {
@@ -86,6 +91,13 @@ sap.ui.define([
       };
       const button = (title, handler) => new Button({ text: title, press: handler });
       const asset = () => assets.getSelectedKey();
+      const detailKey = () => detailsAsset.getSelectedKey();
+      const requestKey = () => requestAsset.getSelectedKey();
+      const updateDetail = () => {
+        const selected = assetRows.find(v => v.NODE_KEY === detailKey());
+        location.setValue(selected?.LOCATION || '');
+        assetName.setValue(selected?.ASSET_NAME || '');
+      };
       const remarks = () => comment.getValue().trim();
       const page = new Page({
         title: 'Department Asset Operations',
@@ -120,17 +132,17 @@ sap.ui.define([
           ] }), new IconTabFilter({ key: 'details', text: 'Asset Details', icon: 'sap-icon://edit', content: [new VBox({ items: [
             new Text({ text: 'Only name and location of departmental assets can be edited here.' }),
             new Label({ text: 'Select department asset', labelFor: assets }),
-            // The same asset selection is used by all three sections.
+            detailsAsset,
             new Title({ text: 'Asset details' }),
             new Label({ text: 'Name', labelFor: assetName }),
             assetName,
             new Label({ text: 'Location', labelFor: location }),
             location,
             button('Save Asset Details', async () => {
-              if (!asset()) return MessageBox.error('Select an asset');
+              if (!detailKey()) return MessageBox.error('Select an asset');
               try {
                 const csrf = await token();
-                await call('Assets(' + asset() + ')', {
+                await call('Assets(' + detailKey() + ')', {
                   method: 'PATCH',
                   headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
                   body: JSON.stringify({ ASSET_NAME: assetName.getValue(), LOCATION: location.getValue() })
@@ -142,8 +154,12 @@ sap.ui.define([
           ] }).addStyleClass('sapUiContentPadding')
           ] }), new IconTabFilter({ key: 'requests', text: 'Employee Requests', icon: 'sap-icon://approvals', content: [new VBox({ items: [
             new Title({ text: 'Maintenance and request review' }),
+            new Label({ text: 'Asset for maintenance', labelFor: requestAsset }),
+            requestAsset,
+            new Label({ text: 'Maintenance issue / review note', labelFor: comment }),
+
             button('Raise Maintenance Request', () => invoke('raiseMaintenanceRequest', {
-              asset: asset(), description: remarks()
+              asset: requestKey(), description: remarks()
             })),
             new Label({ text: 'Pending request', labelFor: requests }),
             requests,
@@ -159,13 +175,11 @@ sap.ui.define([
           ] })]
         })]
       });
+      detailsAsset.attachChange(updateDetail);
       assets.attachChange(() => {
         const id = asset();
         if (!id) return;
-        call('Assets(' + id + ')').then(v => {
-          location.setValue(v.LOCATION || '');
-          assetName.setValue(v.ASSET_NAME || '');
-        }).catch(err => MessageBox.error(err.message));
+        // Asset fields on other tabs have their own selection state.
       });
       refresh().catch(err => MessageBox.error(err.message));
       return new App({ pages: [page] });
