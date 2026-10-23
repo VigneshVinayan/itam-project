@@ -437,20 +437,20 @@ annotate AssetAdminService.Employees with @(
         Title          : { Value: FULL_NAME },
         Description    : { Value: EMPLOYEE_NO }
     },
-    UI.SelectionFields: [ FULL_NAME, DEPARTMENT_NODE_KEY, LOCATION, STATUS ],
+    UI.SelectionFields: [ FULL_NAME, DEPARTMENT, LOCATION, STATUS ],
     UI.PresentationVariant: { SortOrder: [{ Property: EMPLOYEE_NO }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { Value: EMPLOYEE_NO },
         { Value: FULL_NAME },
         { Value: EMAIL },
-        { Value: DEPARTMENT_NODE_KEY },
+        { Value: DEPARTMENT },
         { Value: LOCATION },
         { Value: STATUS }
     ],
     UI.FieldGroup #General: { Data: [
         { Value: EMPLOYEE_NO },
         { Value: FULL_NAME },
-        { Value: DEPARTMENT_NODE_KEY },
+        { Value: DEPARTMENT },
         { Value: LOCATION },
         { Value: STATUS }
     ]},
@@ -463,13 +463,14 @@ annotate AssetAdminService.Employees with @(
         { $Type: 'UI.ReferenceFacet', Label: '{i18n>Contact}', Target: '@UI.FieldGroup#Contact' }
     ]
 ) {
-    // The form binds the persisted foreign key, not the navigation association.
-    // Fiori Elements V4 renders fixed-value help on this field as a ComboBox.
-    DEPARTMENT_NODE_KEY @title: '{i18n>Department}'
-                        @Common.Text: DEPARTMENT.NAME
-                        @Common.TextArrangement: #TextOnly
-                        @Common.ValueListWithFixedValues
-                        @Common.ValueList: {
+    // Managed association foreign keys exist only in compiled OData, not at CDS
+    // design time. Annotations must target DEPARTMENT; CAP maps the value help
+    // and its text to the generated DEPARTMENT_NODE_KEY property.
+    DEPARTMENT @title: '{i18n>Department}'
+               @Common.Text: DEPARTMENT.NAME
+               @Common.TextArrangement: #TextOnly
+               @Common.ValueListWithFixedValues
+               @Common.ValueList: {
         CollectionPath: 'Departments',
         Parameters: [
             { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: DEPARTMENT_NODE_KEY, ValueListProperty: 'NODE_KEY' },
