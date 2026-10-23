@@ -201,7 +201,7 @@ service AssetManagerService {
 
     @readonly
     entity Employees as projection on database.master.Employees {
-        NODE_KEY, EMPLOYEE_NO, FULL_NAME, DEPARTMENT, LOCATION, STATUS
+        NODE_KEY, EMPLOYEE_NO, FULL_NAME, DEPARTMENT_NODE_KEY, DEPARTMENT, LOCATION, STATUS
     };
 
     // generated PDFs: only the requester can download, only until EXPIRES_AT
@@ -374,7 +374,7 @@ service AssetUserService {
 
     @readonly
     @restrict: [{ grant: 'READ', where: 'EMAIL = $user' }]
-    entity Employees as projection on database.master.Employees { NODE_KEY, FULL_NAME, EMAIL, DEPARTMENT, LOCATION };
+    entity Employees as projection on database.master.Employees { NODE_KEY, FULL_NAME, EMAIL, DEPARTMENT_NODE_KEY, DEPARTMENT, LOCATION };
 
     @readonly
     entity Departments as projection on database.master.Departments { NODE_KEY, NAME };
