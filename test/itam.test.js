@@ -106,8 +106,10 @@ describe('Login and roles (FR-013, FR-014, FR-025)', () => {
     });
 
     it('Manager has read-only operational access', async () => {
-        await fails(GET(`${MGR}/Assets`, MANAGER), 403); // no assets currently assigned to Procurement
-        await fails(PATCH(`${MGR}/Assets(${A3})`, { LOCATION: 'Pune' }, MANAGER), 405);
+        const { data } = await GET(`${MGR}/Assets`, MANAGER);
+        assert.equal(data.value.length, 2); // Procurement's available assets
+        await PATCH(`${MGR}/Assets(${A3})`, { LOCATION: 'Bengaluru' }, MANAGER);
+        await fails(PATCH(`${MGR}/Assets(${A3})`, { STATUS: 'ARCHIVED' }, MANAGER), 403);
     });
 
     it('User sees the inventory without costs and without archived assets (FR-002)', async () => {
