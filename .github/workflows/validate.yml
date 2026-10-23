@@ -17,5 +17,16 @@ jobs:
       - run: npm ci
       - name: Compile CDS service model
         run: npx cds compile srv/itam-service.cds
+      - name: Compile Fiori annotations
+        run: npx cds compile app/annotations.cds
+      - name: Check Fiori JavaScript and manifests
+        run: |
+          node --check app/myrequests/webapp/Component.js
+          node --check app/manageractions/webapp/Component.js
+          node --check app/myprofile/webapp/Component.js
+          node --check app/departments/webapp/Component.js
+          node -e "for (const a of ['myrequests','manageractions','myprofile','departments']) JSON.parse(require('fs').readFileSync('app/'+a+'/webapp/manifest.json','utf8'))"
+      - name: Package Fiori apps
+        run: npm run build:apps
       - name: Run CAP integration tests
         run: npm test
