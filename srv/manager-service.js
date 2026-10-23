@@ -295,7 +295,7 @@ export default cds.service.impl(async function () {
         // same request again (retry, double click): never send a second e-mail
         if (requestId) {
             const done = await SELECT.one.from(ReportLogs)
-                .where({ REQUEST_ID: requestId, ACTION: 'EMAIL', OUTCOME: 'SUCCESS', REQUESTED_BY: loginOf(req) });
+                .where({ REQUEST_ID: requestId, ACTION: 'EMAIL', OUTCOME: { in: ['SUCCESS', 'SIMULATED'] }, REQUESTED_BY: loginOf(req) });
             if (done) {
                 return {
                     status: 'DUPLICATE',
@@ -320,9 +320,10 @@ export default cds.service.impl(async function () {
             FILE_NODE_KEY: file.NODE_KEY
         };
 
+        let delivery;
         try {
             const mail = await cds.connect.to('mail');
-            await mail.send('send', {
+            delivery = await mail.send('send', {
                 to: recipients,
                 subject: `${report.title} - ${file.CREATED_AT.slice(0, 10)}`,
                 text: `Please find attached the report "${report.title}" (${file.ROW_COUNT} records).\n` +
@@ -342,12 +343,17 @@ export default cds.service.impl(async function () {
             };
         }
 
-        await audit(req, { ...entry, OUTCOME: 'SUCCESS' });
+        const simulated = delivery?.channel === 'log';
+        const outcome = simulated ? 'SIMULATED' : 'SUCCESS';
+        const message = simulated
+            ? 'E-mail simulation only: PDF was logged, not delivered. Configure mail-api for real delivery.'
+            : `Report handed to configured e-mail provider for ${to}.`;
+        await audit(req, { ...entry, OUTCOME: outcome, MESSAGE: message.slice(0, 255) });
 
-        req.notify(`Report sent to ${to}.`);
+        req.notify(message);
         return {
-            status: 'SENT',
-            message: `Report sent to ${to}.`,
+            status: simulated ? 'SIMULATED' : 'SENT',
+            message,
             requestId,
             recipients: to,
             fileId: file.NODE_KEY
