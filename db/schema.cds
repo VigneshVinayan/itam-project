@@ -69,6 +69,21 @@ context transaction {
         ASSIGNED_BY : Association to master.Employees;
     }
 
+    // User-submitted requests do not directly mutate the asset lifecycle.
+    // Authorized managers/admins review them before lifecycle actions execute.
+    entity AssetRequests : managed {
+        key NODE_KEY : common.Guid;
+        REQUEST_TYPE : String(20); // RETURN or MAINTENANCE
+        STATUS       : String(20) default 'PENDING';
+        DESCRIPTION  : common.String255;
+        REQUESTED_AT : Timestamp;
+        RESOLVED_AT  : Timestamp;
+        DECISION_NOTE : common.String255;
+        ASSET        : Association to Assets;
+        REQUESTED_BY : Association to master.Employees;
+        RESOLVED_BY  : Association to master.Employees;
+    }
+
     // Immutable: rows are only ever inserted (see srv/ledger-guard.js)
     entity OwnershipLedgers {
 
