@@ -286,7 +286,8 @@ service AssetManagerService {
         category   : UUID,
         location   : String,
         dateFrom   : Date,
-        dateTo     : Date
+        dateTo     : Date,
+        department : UUID
     ) returns ExportResult;
 
     type EmailResult {
