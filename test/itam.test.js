@@ -106,14 +106,14 @@ describe('Login and roles (FR-013, FR-014, FR-025)', () => {
     });
 
     it('Manager has read-only operational access', async () => {
-        const { data } = await GET(`${MGR}/Assets`, MANAGER);
-        assert.equal(data.value.length, 10);
+        await fails(GET(`${MGR}/Assets`, MANAGER), 403); // no assets currently assigned to Procurement
         await fails(PATCH(`${MGR}/Assets(${A3})`, { LOCATION: 'Pune' }, MANAGER), 405);
     });
 
     it('User sees the inventory without costs and without archived assets (FR-002)', async () => {
         const { data } = await GET(`${USR}/Assets`, USER);
-        assert.equal(data.value.length, 9);
+        assert.equal(data.value.length, 1);
+        assert.ok(data.value.every(a => a.HOLDER_EMAIL === 'ravi.kumar@itam-demo.com'));
         assert.ok(!data.value.some(a => a.NODE_KEY === A8));
         assert.ok(!('PURCHASE_COST' in data.value[0]));
     });
@@ -145,7 +145,7 @@ describe('Login and roles (FR-013, FR-014, FR-025)', () => {
 describe('Dashboard KPIs and filters (FR-021, FR-026)', () => {
 
     it('shows the lifecycle KPIs', async () => {
-        const { data } = await GET(`${MGR}/getDashboard()`, MANAGER);
+        const { data } = await GET(`${MGR}/getDashboard()`, ADMIN);
         assert.equal(data.totalAssets, 10);
         assert.deepEqual([data.available, data.assigned, data.inMaintenance, data.retired, data.archived], [4, 3, 1, 1, 1]);
         assert.equal(Number(data.utilisationPct), 37.5);          // 3 assigned / 8 in service
@@ -159,20 +159,20 @@ describe('Dashboard KPIs and filters (FR-021, FR-026)', () => {
     });
 
     it('applies status / category / location / date filters', async () => {
-        const { data: chennai } = await GET(`${MGR}/getDashboard(status='ASSIGNED',location='Chennai')`, MANAGER);
+        const { data: chennai } = await GET(`${MGR}/getDashboard(status='ASSIGNED',location='Chennai')`, ADMIN);
         assert.equal(chennai.totalAssets, 1);
         assert.equal(chennai.overdueReturns, 1);
 
-        const { data: laptops } = await GET(`${MGR}/getDashboard(category=${LAPTOP})`, MANAGER);
+        const { data: laptops } = await GET(`${MGR}/getDashboard(category=${LAPTOP})`, ADMIN);
         assert.equal(laptops.totalAssets, 7);
 
-        const { data: recent } = await GET(`${MGR}/getDashboard(dateFrom=2025-01-01,dateTo=2026-12-31)`, MANAGER);
+        const { data: recent } = await GET(`${MGR}/getDashboard(dateFrom=2025-01-01,dateTo=2026-12-31)`, ADMIN);
         assert.equal(recent.totalAssets, 3);                      // AST-0001, -0003, -0009
     });
 
     it('rejects invalid filters', async () => {
-        await fails(GET(`${MGR}/getDashboard(status='BROKEN')`, MANAGER), 400);
-        await fails(GET(`${MGR}/getDashboard(dateFrom=2026-05-01,dateTo=2026-01-01)`, MANAGER), 400);
+        await fails(GET(`${MGR}/getDashboard(status='BROKEN')`, ADMIN), 400);
+        await fails(GET(`${MGR}/getDashboard(dateFrom=2026-05-01,dateTo=2026-01-01)`, ADMIN), 400);
     });
 });
 
@@ -183,24 +183,24 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
     let file;
 
     it('previews a report with the same filters', async () => {
-        const { data: all } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS')`, MANAGER);
+        const { data: all } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS')`, ADMIN);
         assert.equal(all.rowCount, 7);
         assert.equal(all.columns[0], 'Asset Tag');
 
-        const { data: assigned } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS',status='ASSIGNED')`, MANAGER);
+        const { data: assigned } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS',status='ASSIGNED')`, ADMIN);
         assert.equal(assigned.rowCount, 3);
         assert.match(assigned.filters, /Status: ASSIGNED/);
 
-        await fails(GET(`${MGR}/previewReport(reportType='SALARIES')`, MANAGER), 400);
+        await fails(GET(`${MGR}/previewReport(reportType='SALARIES')`, ADMIN), 400);
     });
 
     it('exports a valid PDF with title, filters and the filtered rows', async () => {
-        const { data } = await POST(`${MGR}/exportReport`, { reportType: 'ASSET_INVENTORY', status: 'ASSIGNED' }, MANAGER);
+        const { data } = await POST(`${MGR}/exportReport`, { reportType: 'ASSET_INVENTORY', status: 'ASSIGNED' }, ADMIN);
         assert.equal(data.rowCount, 3);
         assert.match(data.downloadUrl, /ReportFiles\(.+\)\/CONTENT$/);
         file = data;
 
-        const response = await GET(data.downloadUrl, { ...MANAGER, responseType: 'arraybuffer' });
+        const response = await GET(data.downloadUrl, { ...ADMIN, responseType: 'arraybuffer' });
         assert.equal(response.headers['content-type'], 'application/pdf');
         const pdf = Buffer.from(response.data).toString('latin1');
         assert.ok(pdf.startsWith('%PDF-1.4'));
@@ -212,22 +212,22 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
     });
 
     it('only the requester can download, and only until the link expires (NFR-010)', async () => {
-        await fails(GET(file.downloadUrl, ADMIN), 404);
+        await fails(GET(file.downloadUrl, MANAGER), 404);
 
         await cds.run(cds.ql.UPDATE('itam.db.reporting.ReportFiles')
             .set({ EXPIRES_AT: '2020-01-01T00:00:00Z' }).where({ NODE_KEY: file.fileId }));
-        await fails(GET(file.downloadUrl, MANAGER), 410);
+        await fails(GET(file.downloadUrl, ADMIN), 410);
     });
 
     it('e-mails the PDF to validated recipients', async () => {
         const mail = await cds.connect.to('mail');
         const sentBefore = mail.sent.length;
 
-        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: '' }, MANAGER), 400);
-        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com, not-an-email' }, MANAGER), 400);
+        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: '' }, ADMIN), 400);
+        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com, not-an-email' }, ADMIN), 400);
 
         const { data } = await POST(`${MGR}/emailReport`,
-            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com; head.procurement@itam-demo.com', requestId: 'req-1' }, MANAGER);
+            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com; head.procurement@itam-demo.com', requestId: 'req-1' }, ADMIN);
         assert.equal(data.status, 'SENT');
         assert.equal(mail.sent.length, sentBefore + 1);
 
@@ -242,7 +242,7 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         const sentBefore = mail.sent.length;
 
         const { data } = await POST(`${MGR}/emailReport`,
-            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com', requestId: 'req-1' }, MANAGER);
+            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com', requestId: 'req-1' }, ADMIN);
         assert.equal(data.status, 'DUPLICATE');
         assert.equal(mail.sent.length, sentBefore);
     });
@@ -256,12 +256,12 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         }));
 
         const { data: failed } = await POST(`${MGR}/emailReport`,
-            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, MANAGER);
+            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, ADMIN);
         assert.equal(failed.status, 'FAILED');
 
         failing = false;
         const { data: retried } = await POST(`${MGR}/emailReport`,
-            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, MANAGER);
+            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, ADMIN);
         assert.equal(retried.status, 'SENT');
     });
 
@@ -272,7 +272,7 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         assert.ok(actions.includes('DOWNLOAD:SUCCESS'));
         assert.ok(actions.includes('EMAIL:SUCCESS'));
         assert.ok(actions.includes('EMAIL:FAILED'));
-        assert.ok(data.value.every(l => l.REQUESTED_BY === 'manager@itam-demo.com'));
+        assert.ok(data.value.every(l => l.REQUESTED_BY === 'admin@itam-demo.com'));
         assert.ok(!('CONTENT' in data.value[0]));
 
         await fails(GET(`${MGR}/ReportFiles`, USER), 403);
