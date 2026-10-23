@@ -175,6 +175,11 @@ service AssetManagerService {
     @readonly
     entity AssetRequests as projection on database.transaction.AssetRequests;
 
+    // Managers can approve or reject requests from employees in their department.
+    // Approval records a decision only; the lifecycle action is executed separately.
+    action reviewAssetRequest(requestId : UUID, approve : Boolean, note : String(255)) returns String;
+    action raiseMaintenanceRequest(asset : UUID, description : String(255)) returns UUID;
+
     @readonly
     entity Assignments as projection on database.transaction.AssetAssignments;
     @readonly entity History     as projection on database.transaction.OwnershipLedgers;
