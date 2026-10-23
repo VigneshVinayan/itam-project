@@ -1,4 +1,5 @@
 import cds from '@sap/cds';
+import { registerManagerLifecycle } from './manager-lifecycle.js';
 import { randomUUID } from 'crypto';
 import { currentEmployee } from './lib/util.js';
 import { buildReportPdf } from './lib/pdf.js';
@@ -14,6 +15,7 @@ const DOWNLOAD_MINUTES = 15;     // NFR-010: download links are time-limited
 const MAX_RECIPIENTS = 10;
 
 export default cds.service.impl(async function () {
+    registerManagerLifecycle(this);
 
     const { ReportFiles } = this.entities;
     const { ReportFiles: ReportFilesDb, ReportLogs } = cds.entities('itam.db.reporting');
