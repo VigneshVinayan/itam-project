@@ -591,3 +591,25 @@ describe('Department management, assignment edits and maintenance CRUD', () => {
         assert.equal((await getAsset(A5)).STATUS, 'AVAILABLE');
     });
 });
+
+describe('Department reporting and self-profile isolation', () => {
+    const PROCUREMENT = '21000000-0000-4000-8000-000000000002';
+    const ENGINEERING = '21000000-0000-4000-8000-000000000003';
+
+    it('scopes Manager dashboard and report to procurement assets', async () => {
+        const { data: mgr } = await GET(`${MGR}/getDashboard()`, MANAGER);
+        assert.equal(mgr.totalAssets, 2);
+        const { data: report } = await GET(`${MGR}/previewReport(reportType='ASSET_INVENTORY')`, MANAGER);
+        assert.equal(report.rowCount, 2);
+        await fails(GET(`${MGR}/getDashboard(department=${ENGINEERING})`, MANAGER), 403);
+        const { data: admin } = await GET(`${MGR}/getDashboard(department=${PROCUREMENT})`, ADMIN);
+        assert.equal(admin.totalAssets, 2);
+    });
+
+    it('lets User read only their own employee profile', async () => {
+        const { data } = await GET(`${USR}/Employees`, USER);
+        assert.equal(data.value.length, 1);
+        assert.equal(data.value[0].EMAIL, 'ravi.kumar@itam-demo.com');
+        await fails(PATCH(`${USR}/Employees(${RAVI})`, { LOCATION: 'Outside' }, USER), 405);
+    });
+});
