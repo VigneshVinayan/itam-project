@@ -22,7 +22,9 @@ context master {
         FULL_NAME   : common.String255;
         EMAIL       : common.Email;
         PHONE       : common.PhoneNumber;
-        DEPARTMENT  : Association to Departments;
+        // Explicit writable FK for the Employee form; same HANA column as the former generated FK.
+        DEPARTMENT_NODE_KEY : common.Guid;
+        DEPARTMENT : Association to Departments on DEPARTMENT.NODE_KEY = DEPARTMENT_NODE_KEY;
         LOCATION    : common.String64;
         STATUS      : common.EmployeeStatus default 'ACTIVE';
     }
