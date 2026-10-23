@@ -18,6 +18,16 @@ export default cds.service.impl(async function () {
     const { ReportFiles } = this.entities;
     const { ReportFiles: ReportFilesDb, ReportLogs } = cds.entities('itam.db.reporting');
 
+    async function securedFilters(req) {
+        const filters = readFilters(req);
+        if (!req.user.is('Admin')) {
+            const employee = await currentEmployee(req);
+            if (!employee?.DEPARTMENT_NODE_KEY) req.reject(403, 'Manager must belong to a department.');
+            filters.departmentScope = employee.DEPARTMENT_NODE_KEY;
+        }
+        return filters;
+    }
+
     // Request review is department-scoped for Managers, unrestricted for Admins.
     const { AssetRequests, Assets } = cds.entities('itam.db.transaction');
     const { Employees } = cds.entities('itam.db.master');
@@ -87,7 +97,7 @@ export default cds.service.impl(async function () {
     // DASHBOARD (FR-021, FR-026)
     // ==================================================
 
-    this.on('getDashboard', async (req) => dashboard(readFilters(req)));
+    this.on('getDashboard', async (req) => dashboard(await securedFilters(req)));
 
     // ==================================================
     // REPORT PREVIEW (FR-022, FR-026)
@@ -96,7 +106,7 @@ export default cds.service.impl(async function () {
     this.on('previewReport', async (req) => {
 
         const { type } = reportDefinition(req);
-        const filters = readFilters(req);
+        const filters = await securedFilters(req);
         const report = await runReport(type, filters, { limit: MAX_PREVIEW_ROWS });
 
         return {
@@ -117,7 +127,7 @@ export default cds.service.impl(async function () {
     async function generatePdf(req) {
 
         const { type } = reportDefinition(req);
-        const filters = readFilters(req);
+        const filters = await securedFilters(req);
 
         const report = await runReport(type, filters, { limit: MAX_EXPORT_ROWS + 1 });
         if (report.rowCount > MAX_EXPORT_ROWS) {
