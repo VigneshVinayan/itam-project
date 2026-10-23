@@ -1,5 +1,6 @@
 import cds from '@sap/cds';
 import { randomUUID } from 'crypto';
+import { currentEmployee } from './lib/util.js';
 import { buildReportPdf } from './lib/pdf.js';
 import { loginOf, EMAIL_PATTERN } from './lib/util.js';
 import {
@@ -7,7 +8,7 @@ import {
     MAX_EXPORT_ROWS, MAX_PREVIEW_ROWS
 } from './lib/reports.js';
 
-const { INSERT, SELECT } = cds.ql;
+const { INSERT, SELECT, UPDATE } = cds.ql;
 
 const DOWNLOAD_MINUTES = 15;     // NFR-010: download links are time-limited
 const MAX_RECIPIENTS = 10;
@@ -16,6 +17,58 @@ export default cds.service.impl(async function () {
 
     const { ReportFiles } = this.entities;
     const { ReportFiles: ReportFilesDb, ReportLogs } = cds.entities('itam.db.reporting');
+
+    // Request review is department-scoped for Managers, unrestricted for Admins.
+    const { AssetRequests, Assets } = cds.entities('itam.db.transaction');
+    const { Employees } = cds.entities('itam.db.master');
+    async function reviewer(req) {
+        const self = await currentEmployee(req);
+        if (!self) req.reject(403, 'No employee linked to login.');
+        return self;
+    }
+    async function checkDepartment(req, ownerId) {
+        if (req.user.is('Admin')) return;
+        const self = await reviewer(req);
+        if (!self.DEPARTMENT_NODE_KEY) req.reject(403, 'Manager has no department.');
+        const target = await SELECT.one.from(Employees).where({ NODE_KEY: ownerId });
+        if (!target || target.DEPARTMENT_NODE_KEY !== self.DEPARTMENT_NODE_KEY) {
+            req.reject(403, 'Request belongs to a different department.');
+        }
+    }
+    this.on('raiseMaintenanceRequest', async req => {
+        const actor = await reviewer(req);
+        const description = String(req.data.description || '').trim();
+        if (!description || description.length > 255) req.reject(400, 'Provide a maintenance description (1-255 characters).');
+        const asset = await SELECT.one.from(Assets).where({ NODE_KEY: req.data.asset, STATUS: 'ASSIGNED' });
+        if (!asset) req.reject(404, 'No assigned asset with that key.');
+        await checkDepartment(req, asset.CURRENT_HOLDER_NODE_KEY);
+        const duplicate = await SELECT.one.from(AssetRequests).where({
+            ASSET_NODE_KEY: asset.NODE_KEY, REQUEST_TYPE: 'MAINTENANCE', STATUS: 'PENDING'
+        });
+        if (duplicate) req.reject(409, 'A maintenance request is already pending for this asset.');
+        const id = randomUUID();
+        await INSERT.into(AssetRequests).entries({
+            NODE_KEY: id, REQUEST_TYPE: 'MAINTENANCE', STATUS: 'PENDING',
+            DESCRIPTION: description, ASSET_NODE_KEY: asset.NODE_KEY,
+            REQUESTED_BY_NODE_KEY: actor.NODE_KEY, REQUESTED_AT: new Date().toISOString()
+        });
+        return id;
+    });
+    this.on('reviewAssetRequest', async req => {
+        const actor = await reviewer(req);
+        const item = await SELECT.one.from(AssetRequests).where({ NODE_KEY: req.data.requestId });
+        if (!item) req.reject(404, 'Request not found.');
+        await checkDepartment(req, item.REQUESTED_BY_NODE_KEY);
+        if (item.STATUS !== 'PENDING') req.reject(409, 'Request already reviewed.');
+        const note = String(req.data.note || '').trim();
+        if (note.length > 255) req.reject(400, 'Review note is too long.');
+        const status = req.data.approve ? 'APPROVED' : 'REJECTED';
+        await UPDATE(AssetRequests).set({
+            STATUS: status, DECISION_NOTE: note || null,
+            RESOLVED_BY_NODE_KEY: actor.NODE_KEY, RESOLVED_AT: new Date().toISOString()
+        }).where({ NODE_KEY: item.NODE_KEY, STATUS: 'PENDING' });
+        return status;
+    });
 
     // ==================================================
     // AUDIT LOG (FRD Security: Audit, NFR-012) - no report contents are stored
