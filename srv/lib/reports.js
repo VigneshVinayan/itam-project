@@ -208,11 +208,11 @@ export const REPORTS = {
         dateField: 'REPORTED_DATE',
         orderBy: 'REPORTED_DATE desc',
         columns: [
-            'ASSET.ASSET_TAG as ASSET_TAG', 'ASSET.ASSET_NAME as ASSET_NAME', 'TYPE', 'ISSUE',
+            'ASSET.ASSET_TAG as ASSET_TAG', 'ASSET.ASSET_NAME as ASSET_NAME', 'TYPE', 'DESCRIPTION',
             'SERVICE_VENDOR.NAME as VENDOR', 'REPORTED_DATE', 'COMPLETED_DATE', 'STATUS'
         ],
         headers: ['Asset Tag', 'Asset', 'Type', 'Issue', 'Vendor', 'Reported', 'Completed', 'Status'],
-        row: (r) => [r.ASSET_TAG, r.ASSET_NAME, r.TYPE, r.ISSUE, r.VENDOR, r.REPORTED_DATE, r.COMPLETED_DATE, r.STATUS],
+        row: (r) => [r.ASSET_TAG, r.ASSET_NAME, r.TYPE, r.DESCRIPTION, r.VENDOR, r.REPORTED_DATE, r.COMPLETED_DATE, r.STATUS],
         chart: { title: 'Maintenance by status', field: 'STATUS' }
     },
 
