@@ -1,6 +1,6 @@
 import cds from '@sap/cds';
 import { randomUUID } from 'node:crypto';
-import { currentEmployee } from './lib/util.js';
+import { currentEmployee, loginOf } from './lib/util.js';
 
 const { SELECT, INSERT } = cds.ql;
 
@@ -11,7 +11,7 @@ export default cds.service.impl(function () {
 
     async function submit(req, kind) {
         const employee = await currentEmployee(req);
-        if (!employee) return req.reject(403, 'No employee record is linked to this login.');
+        if (!employee) return req.reject(403, `No employee matches the current login (${loginOf(req)}). Ask an Admin to create an Employee with this exact email, or sign in using a linked test account. In hybrid mode, check the configured authentication profile.`);
         const assetKey = req.data.asset;
         if (!assetKey) return req.reject(400, 'Asset is required.');
         const asset = await SELECT.one.from(Assets).where({
