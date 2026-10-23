@@ -486,3 +486,55 @@ describe('Employees, categories, vendors (FR-016, FR-017)', () => {
         assert.equal(asset.CURRENT_HOLDER_NODE_KEY, RAVI);
     });
 });
+
+describe('Department-scoped Manager and User workflows (FR-027/028)', () => {
+    const VIKRAM = '20000000-0000-4000-8000-000000000002';
+
+    it('allows Manager to assign and return their departmental available asset', async () => {
+        const { data: assigned } = await POST(`${MGR}/assignAsset`, {
+            asset: A3, employee: VIKRAM, remarks: 'Manager issue'
+        }, MANAGER);
+        assert.match(assigned.value, /assigned/i);
+        const { data: asset } = await GET(`${MGR}/Assets(${A3})`, MANAGER);
+        assert.equal(asset.STATUS, 'ASSIGNED');
+        assert.equal(asset.CURRENT_HOLDER_NODE_KEY, VIKRAM);
+        await fails(POST(`${MGR}/transferAsset`, {
+            asset: A3, toEmployee: RAVI, remarks: 'Cross-department'
+        }, MANAGER), 403);
+        const { data: returned } = await POST(`${MGR}/returnAsset`, {
+            asset: A3, remarks: 'Returned to department stock'
+        }, MANAGER);
+        assert.match(returned.value, /returned/i);
+        const { data: available } = await GET(`${MGR}/Assets(${A3})`, MANAGER);
+        assert.equal(available.STATUS, 'AVAILABLE');
+    });
+
+    it('permits users to request return of only their own assigned assets', async () => {
+        await fails(POST(`${USR}/submitReturnRequest`, {
+            asset: A3, description: 'Not mine'
+        }, USER), 403);
+        const { data: requestId } = await POST(`${USR}/submitReturnRequest`, {
+            asset: A1, description: 'Request collection'
+        }, USER);
+        assert.ok(requestId.value);
+        await fails(POST(`${USR}/submitReturnRequest`, {
+            asset: A1, description: 'Duplicate'
+        }, USER), 409);
+        await fails(POST(`${MGR}/reviewAssetRequest`, {
+            requestId: requestId.value, approve: true, note: 'Outside department'
+        }, MANAGER), 403);
+        const { data: status } = await POST(`${MGR}/reviewAssetRequest`, {
+            requestId: requestId.value, approve: true, note: 'Approved for collection'
+        }, ADMIN);
+        assert.equal(status.value, 'APPROVED');
+    });
+
+    it('rejects maintenance requests for other users assets and requires a description', async () => {
+        await fails(POST(`${USR}/submitMaintenanceRequest`, {
+            asset: A1, description: ''
+        }, USER), 400);
+        await fails(POST(`${USR}/submitMaintenanceRequest`, {
+            asset: A3, description: 'Wrong owner'
+        }, USER), 403);
+    });
+});
