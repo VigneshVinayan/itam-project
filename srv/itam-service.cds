@@ -110,6 +110,9 @@ service AssetAdminService {
     };
 
     @odata.draft.enabled
+    entity Departments as projection on database.master.Departments;
+
+    @odata.draft.enabled
     entity Employees as projection on database.master.Employees;
 
     @odata.draft.enabled
@@ -169,6 +172,7 @@ service AssetManagerService {
     @readonly entity Assignments as projection on database.transaction.AssetAssignments;
     @readonly entity History     as projection on database.transaction.OwnershipLedgers;
     @readonly entity Maintenance as projection on database.transaction.MaintenanceRecords;
+    @readonly entity Departments as projection on database.master.Departments;
     @readonly entity Categories  as projection on database.master.AssetCategories;
     @readonly entity Vendors     as projection on database.master.Vendors;
     @readonly entity AssetStatuses as projection on database.codes.AssetStatuses;
@@ -331,7 +335,11 @@ service AssetUserService {
     entity Categories as projection on database.master.AssetCategories { NODE_KEY, NAME };
 
     @readonly
-    entity Employees as projection on database.master.Employees { NODE_KEY, FULL_NAME, DEPARTMENT, LOCATION };
+    @restrict: [{ grant: 'READ', where: 'EMAIL = $user' }]
+    entity Employees as projection on database.master.Employees { NODE_KEY, FULL_NAME, EMAIL, DEPARTMENT, LOCATION };
+
+    @readonly
+    entity Departments as projection on database.master.Departments { NODE_KEY, NAME };
 
     @readonly
     entity AssetStatuses as projection on database.codes.AssetStatuses;
