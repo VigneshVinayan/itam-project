@@ -36,7 +36,12 @@ export default cds.service.impl(async function () {
             return;
         }
         if (entity === 'AssetRequests') {
-            req.query.where({ REQUESTED_BY_NODE_KEY: { in: employeeIds } });
+            const deptAssets = await SELECT.from(Assets).columns('NODE_KEY')
+                .where({ MANAGING_DEPARTMENT_NODE_KEY: self.DEPARTMENT_NODE_KEY });
+            req.query.where({
+                REQUESTED_BY_NODE_KEY: { in: employeeIds },
+                ASSET_NODE_KEY: { in: deptAssets.map(a => a.NODE_KEY) }
+            });
             return;
         }
         const deptAssets = await SELECT.from(Assets).columns('NODE_KEY')
