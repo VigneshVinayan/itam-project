@@ -7,6 +7,13 @@ using { itam.common as common } from './common';
 context master {
 
     // The login e-mail (XSUAA) links a user to an employee
+    entity Departments : managed {
+        key NODE_KEY : common.Guid;
+        NAME        : common.String64;
+        COST_CENTER : common.String64;
+        IS_ACTIVE   : Boolean default true;
+    }
+
     entity Employees : managed {
 
         key NODE_KEY : common.Guid;
@@ -15,7 +22,7 @@ context master {
         FULL_NAME   : common.String255;
         EMAIL       : common.Email;
         PHONE       : common.PhoneNumber;
-        DEPARTMENT  : common.String64;
+        DEPARTMENT  : Association to Departments;
         LOCATION    : common.String64;
         STATUS      : common.EmployeeStatus default 'ACTIVE';
     }
