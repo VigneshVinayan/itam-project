@@ -36,6 +36,8 @@ context transaction {
         CONDITION         : common.String64;
         DISPOSAL_METHOD   : common.DisposalMethod;
 
+        // Department accountable for this asset, including while AVAILABLE.
+        MANAGING_DEPARTMENT : Association to master.Departments;
         CATEGORY       : Association to master.AssetCategories;
         VENDOR         : Association to master.Vendors;
         CURRENT_HOLDER : Association to master.Employees;
