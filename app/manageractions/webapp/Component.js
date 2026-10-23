@@ -2,9 +2,11 @@ sap.ui.define([
   'sap/ui/core/UIComponent', 'sap/m/App', 'sap/m/Page', 'sap/m/VBox',
   'sap/m/Label', 'sap/m/Select', 'sap/ui/core/Item', 'sap/m/TextArea',
   'sap/m/Input', 'sap/m/DatePicker', 'sap/m/Button', 'sap/m/Title',
-  'sap/m/MessageToast', 'sap/m/MessageBox', 'sap/m/List', 'sap/m/StandardListItem'
+  'sap/m/MessageToast', 'sap/m/MessageBox', 'sap/m/List', 'sap/m/StandardListItem',
+  'sap/m/IconTabBar', 'sap/m/IconTabFilter', 'sap/m/Text'
 ], function (UIComponent, App, Page, VBox, Label, Select, Item, TextArea, Input,
-             DatePicker, Button, Title, MessageToast, MessageBox, List, StandardListItem) {
+             DatePicker, Button, Title, MessageToast, MessageBox, List, StandardListItem,
+             IconTabBar, IconTabFilter, Text) {
   'use strict';
   const ROOT = '/odata/v4/manager/';
   async function call(path, options) {
@@ -33,6 +35,8 @@ sap.ui.define([
       const location = new Input({ placeholder: 'Asset location' });
       const assetName = new Input({ placeholder: 'Asset name / model' });
       const pending = new List({ headerText: 'Department requests' });
+      let assetRows = [];
+      let employeeRows = [];
 
       const populate = (select, data, key, label) => {
         const selected = select.getSelectedKey();
@@ -49,9 +53,14 @@ sap.ui.define([
           call('Assignments?$select=NODE_KEY,ASSET_NODE_KEY,ASSIGNMENT_STATUS'),
           call('AssetRequests?$select=NODE_KEY,REQUEST_TYPE,STATUS,DESCRIPTION&$orderby=REQUESTED_AT desc')
         ]);
-        populate(assets, a.value || [], 'NODE_KEY', v => v.ASSET_TAG + ' (' + v.STATUS + ')');
+        assetRows = a.value || [];
+        employeeRows = e.value || [];
+        populate(assets, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME + ' (' + v.STATUS + ')');
         populate(employees, e.value || [], 'NODE_KEY', v => v.FULL_NAME);
-        populate(assignments, (b.value || []).filter(v => v.ASSIGNMENT_STATUS === 'ACTIVE'), 'NODE_KEY', v => v.NODE_KEY);
+        populate(assignments, (b.value || []).filter(v => v.ASSIGNMENT_STATUS === 'ACTIVE'), 'NODE_KEY', v => {
+          const tag = assetRows.find(a => a.NODE_KEY === v.ASSET_NODE_KEY)?.ASSET_TAG || 'Asset';
+          return tag + ' — Active assignment';
+        });
         populate(requests, (r.value || []).filter(v => v.STATUS === 'PENDING'), 'NODE_KEY',
           v => v.REQUEST_TYPE + ': ' + (v.DESCRIPTION || v.NODE_KEY));
         pending.destroyItems();
@@ -80,9 +89,10 @@ sap.ui.define([
       const remarks = () => comment.getValue().trim();
       const page = new Page({
         title: 'Department Asset Operations',
-        content: [new VBox({
-          width: '100%',
-          items: [
+        content: [new IconTabBar({
+          expandable: false,
+          items: [new IconTabFilter({ key: 'assignment', text: 'Asset Assignments', icon: 'sap-icon://laptop', content: [new VBox({
+          width: '100%', items: [
             new Title({ text: 'Asset lifecycle' }),
             new Label({ text: 'Department asset', labelFor: assets }),
             assets,
@@ -106,6 +116,11 @@ sap.ui.define([
               assignment: assignments.getSelectedKey(),
               expectedReturnDate: due.getValue() || null, remarks: remarks()
             })),
+          ] }).addStyleClass('sapUiContentPadding'),
+          ] }), new IconTabFilter({ key: 'details', text: 'Asset Details', icon: 'sap-icon://edit', content: [new VBox({ items: [
+            new Text({ text: 'Only name and location of departmental assets can be edited here.' }),
+            new Label({ text: 'Select department asset', labelFor: assets }),
+            // The same asset selection is used by all three sections.
             new Title({ text: 'Asset details' }),
             new Label({ text: 'Name', labelFor: assetName }),
             assetName,
@@ -124,6 +139,8 @@ sap.ui.define([
                 await refresh();
               } catch (err) { MessageBox.error(err.message); }
             }),
+          ] }).addStyleClass('sapUiContentPadding')
+          ] }), new IconTabFilter({ key: 'requests', text: 'Employee Requests', icon: 'sap-icon://approvals', content: [new VBox({ items: [
             new Title({ text: 'Maintenance and request review' }),
             button('Raise Maintenance Request', () => invoke('raiseMaintenanceRequest', {
               asset: asset(), description: remarks()
@@ -138,8 +155,9 @@ sap.ui.define([
             })),
             button('Refresh', () => refresh().catch(err => MessageBox.error(err.message))),
             pending
-          ]
-        }).addStyleClass('sapUiContentPadding sapUiSmallMargin')]
+          ] }).addStyleClass('sapUiContentPadding')
+          ] })]
+        })]
       });
       assets.attachChange(() => {
         const id = asset();
