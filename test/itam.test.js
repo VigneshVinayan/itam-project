@@ -538,3 +538,56 @@ describe('Department-scoped Manager and User workflows (FR-027/028)', () => {
         }, USER), 403);
     });
 });
+
+describe('Department management, assignment edits and maintenance CRUD', () => {
+    const A5 = '40000000-0000-4000-8000-000000000005';
+    const ENGINEERING = '21000000-0000-4000-8000-000000000003';
+
+    it('exposes departments and prevents deleting referenced departments', async () => {
+        const { data } = await GET(`${ADM}/Departments`, ADMIN);
+        assert.equal(data.value.length, 5);
+        assert.ok(data.value.some(d => d.NAME === 'Engineering'));
+        await fails(DELETE(active('Departments', ENGINEERING), ADMIN), 409);
+    });
+
+    it('permits PATCH of active assignment dates but rejects status tampering', async () => {
+        const { data } = await GET(`${ADM}/Assignments?$filter=ASSET_NODE_KEY eq ${A1}`, ADMIN);
+        const activeAssignment = data.value.find(a => a.ASSIGNMENT_STATUS === 'ACTIVE');
+        assert.ok(activeAssignment);
+        await PATCH(`${ADM}/Assignments(${activeAssignment.NODE_KEY})`, {
+            EXPECTED_RETURN_DATE: '2028-12-31'
+        }, ADMIN);
+        await fails(PATCH(`${ADM}/Assignments(${activeAssignment.NODE_KEY})`, {
+            ASSIGNMENT_STATUS: 'RETURNED'
+        }, ADMIN), 403);
+        await fails(PATCH(`${MGR}/Assignments(${activeAssignment.NODE_KEY})`, {
+            REMARKS: 'Not my team'
+        }, MANAGER), 403);
+    });
+
+    it('creates and updates maintenance without bypassing lifecycle actions', async () => {
+        const reportedDate = new Date().toISOString().slice(0, 10);
+        const { data: maintenance } = await POST(`${ADM}/Maintenance`, {
+            ASSET_NODE_KEY: A5,
+            SERVICE_VENDOR_NODE_KEY: FIXIT,
+            TYPE: 'REPAIR',
+            DESCRIPTION: 'Display malfunction',
+            REPORTED_DATE: reportedDate,
+            COST: 120.50,
+            COVERED_BY_WARRANTY: true
+        }, ADMIN);
+        assert.ok(maintenance.NODE_KEY);
+        assert.equal((await getAsset(A5)).STATUS, 'MAINTENANCE');
+        await PATCH(`${ADM}/Maintenance(${maintenance.NODE_KEY})`, {
+            COST: 150.00, NEXT_DUE_DATE: '2027-11-01'
+        }, ADMIN);
+        await fails(PATCH(`${ADM}/Maintenance(${maintenance.NODE_KEY})`, {
+            STATUS: 'COMPLETED'
+        }, ADMIN), 403);
+        const { data: result } = await POST(action(A5, 'completeMaintenance'), {
+            completedDate: reportedDate, resolution: 'Fixed'
+        }, ADMIN);
+        assert.match(result.value, /completed/i);
+        assert.equal((await getAsset(A5)).STATUS, 'AVAILABLE');
+    });
+});
