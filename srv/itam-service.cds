@@ -291,7 +291,7 @@ service AssetManagerService {
     ) returns ExportResult;
 
     type EmailResult {
-        status     : String;     // SENT | FAILED | DUPLICATE
+        status     : String;     // SENT | SIMULATED | FAILED | DUPLICATE
         message    : String;
         requestId  : String;
         recipients : String;
