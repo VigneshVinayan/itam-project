@@ -32,7 +32,8 @@ sap.ui.define([
       const requestAsset = new Select({ width: '100%' });
       const assignments = new Select({ width: '100%' });
       const requests = new Select({ width: '100%' });
-      const comment = new TextArea({ width: '100%', rows: 2, placeholder: 'Reason / remarks / maintenance issue' });
+      const comment = new TextArea({ width: '100%', rows: 2, placeholder: 'Assignment remarks' });
+      const requestNote = new TextArea({ width: '100%', rows: 2, placeholder: 'Maintenance issue or approval note' });
       const due = new DatePicker({ valueFormat: 'yyyy-MM-dd', displayFormat: 'medium', width: '100%' });
       const location = new Input({ placeholder: 'Asset location' });
       const assetName = new Input({ placeholder: 'Asset name / model' });
@@ -58,6 +59,7 @@ sap.ui.define([
         assetRows = a.value || [];
         employeeRows = e.value || [];
         populate(assets, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME + ' (' + v.STATUS + ')');
+        updateActions();
         populate(detailsAsset, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME);
         populate(requestAsset, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME);
         populate(employees, e.value || [], 'NODE_KEY', v => v.FULL_NAME);
@@ -99,6 +101,21 @@ sap.ui.define([
         assetName.setValue(selected?.ASSET_NAME || '');
       };
       const remarks = () => comment.getValue().trim();
+      const assignButton = button('Assign Asset', () => invoke('assignAsset', {
+        asset: asset(), employee: employees.getSelectedKey(),
+        expectedReturnDate: due.getValue() || null, remarks: remarks()
+      }));
+      const transferButton = button('Transfer Asset', () => invoke('transferAsset', {
+        asset: asset(), toEmployee: employees.getSelectedKey(), remarks: remarks()
+      }));
+      const returnButton = button('Return Asset', () => invoke('returnAsset', { asset: asset(), remarks: remarks() }));
+      const updateActions = () => {
+        const status = assetRows.find(a => a.NODE_KEY === asset())?.STATUS;
+        assignButton.setEnabled(status === 'AVAILABLE');
+        transferButton.setEnabled(status === 'ASSIGNED');
+        returnButton.setEnabled(status === 'ASSIGNED');
+      };
+      assets.attachChange(updateActions);
       const page = new Page({
         title: 'Department Asset Operations',
         content: [new IconTabBar({
@@ -114,14 +131,9 @@ sap.ui.define([
             due,
             new Label({ text: 'Remarks or issue', labelFor: comment }),
             comment,
-            button('Assign Asset', () => invoke('assignAsset', {
-              asset: asset(), employee: employees.getSelectedKey(),
-              expectedReturnDate: due.getValue() || null, remarks: remarks()
-            })),
-            button('Transfer Asset', () => invoke('transferAsset', {
-              asset: asset(), toEmployee: employees.getSelectedKey(), remarks: remarks()
-            })),
-            button('Return Asset', () => invoke('returnAsset', { asset: asset(), remarks: remarks() })),
+            assignButton,
+            transferButton,
+            returnButton,
             new Label({ text: 'Active assignment', labelFor: assignments }),
             assignments,
             button('Update Assignment', () => invoke('updateAssignment', {
@@ -156,18 +168,19 @@ sap.ui.define([
             new Title({ text: 'Maintenance and request review' }),
             new Label({ text: 'Asset for maintenance', labelFor: requestAsset }),
             requestAsset,
-            new Label({ text: 'Maintenance issue / review note', labelFor: comment }),
+            new Label({ text: 'Maintenance issue / review note', labelFor: requestNote }),
+            requestNote,
 
             button('Raise Maintenance Request', () => invoke('raiseMaintenanceRequest', {
-              asset: requestKey(), description: remarks()
+              asset: requestKey(), description: requestNote.getValue().trim()
             })),
             new Label({ text: 'Pending request', labelFor: requests }),
             requests,
             button('Approve Request', () => invoke('reviewAssetRequest', {
-              requestId: requests.getSelectedKey(), approve: true, note: remarks()
+              requestId: requests.getSelectedKey(), approve: true, note: requestNote.getValue().trim()
             })),
             button('Reject Request', () => invoke('reviewAssetRequest', {
-              requestId: requests.getSelectedKey(), approve: false, note: remarks()
+              requestId: requests.getSelectedKey(), approve: false, note: requestNote.getValue().trim()
             })),
             button('Refresh', () => refresh().catch(err => MessageBox.error(err.message))),
             pending
