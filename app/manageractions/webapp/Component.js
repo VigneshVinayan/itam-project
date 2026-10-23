@@ -40,6 +40,31 @@ sap.ui.define([
       const pending = new List({ headerText: 'Department requests' });
       let assetRows = [];
       let employeeRows = [];
+      let assignmentRows = [];
+      let requestRows = [];
+      const assetSummary = new Text({ text: 'Select an asset to see its status and current holder.', wrapping: true });
+      const nextStep = new Text({ text: '', wrapping: true, visible: false });
+
+      const updateAssetSummary = () => {
+        const selected = assetRows.find(a => a.NODE_KEY === assets.getSelectedKey());
+        if (!selected) {
+          assetSummary.setText('No asset selected.');
+          return;
+        }
+        const assignment = assignmentRows.find(a =>
+          a.ASSET_NODE_KEY === selected.NODE_KEY && a.ASSIGNMENT_STATUS === 'ACTIVE');
+        const holder = assignment
+          ? employeeRows.find(e => e.NODE_KEY === assignment.EMPLOYEE_NODE_KEY)?.FULL_NAME || 'Employee record unavailable'
+          : 'None';
+        assetSummary.setText('Status: ' + selected.STATUS + ' | Current holder: ' + holder);
+      };
+
+      const requestLabel = item => {
+        const employee = employeeRows.find(e => e.NODE_KEY === item.REQUESTED_BY_NODE_KEY)?.FULL_NAME || 'Unknown employee';
+        const tag = assetRows.find(a => a.NODE_KEY === item.ASSET_NODE_KEY)?.ASSET_TAG || 'Unknown asset';
+        const date = item.REQUESTED_AT ? new Date(item.REQUESTED_AT).toLocaleDateString() : 'Date unavailable';
+        return employee + ' | ' + tag + ' | ' + item.REQUEST_TYPE + ' | ' + date + ' | ' + item.STATUS;
+      };
 
       const populate = (select, data, key, label) => {
         const selected = select.getSelectedKey();
@@ -54,12 +79,15 @@ sap.ui.define([
           call('Assets?$select=NODE_KEY,ASSET_TAG,ASSET_NAME,STATUS,LOCATION'),
           call('Employees?$select=NODE_KEY,FULL_NAME'),
           call('Assignments?$select=NODE_KEY,ASSET_NODE_KEY,EMPLOYEE_NODE_KEY,ASSIGNMENT_STATUS'),
-          call('AssetRequests?$select=NODE_KEY,REQUEST_TYPE,STATUS,DESCRIPTION&$orderby=REQUESTED_AT desc')
+          call('AssetRequests?$select=NODE_KEY,ASSET_NODE_KEY,REQUESTED_BY_NODE_KEY,REQUEST_TYPE,REQUESTED_AT,STATUS,DESCRIPTION&$orderby=REQUESTED_AT desc')
         ]);
         assetRows = a.value || [];
         employeeRows = e.value || [];
+        assignmentRows = b.value || [];
+        requestRows = r.value || [];
         populate(assets, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME + ' (' + v.STATUS + ')');
         updateActions();
+        updateAssetSummary();
         populate(detailsAsset, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME);
         populate(requestAsset, assetRows, 'NODE_KEY', v => v.ASSET_TAG + ' — ' + v.ASSET_NAME);
         populate(employees, e.value || [], 'NODE_KEY', v => v.FULL_NAME);
@@ -68,13 +96,13 @@ sap.ui.define([
           const who = employeeRows.find(e => e.NODE_KEY === v.EMPLOYEE_NODE_KEY)?.FULL_NAME || 'Employee';
           return tag + ' — ' + who;
         });
-        populate(requests, (r.value || []).filter(v => v.STATUS === 'PENDING'), 'NODE_KEY',
-          v => v.REQUEST_TYPE + ': ' + (v.DESCRIPTION || v.NODE_KEY));
+        populate(requests, requestRows.filter(v => v.STATUS === 'PENDING'), 'NODE_KEY', requestLabel);
         pending.destroyItems();
-        for (const item of r.value || []) {
+        for (const item of requestRows) {
           pending.addItem(new StandardListItem({
-            title: item.REQUEST_TYPE + ' — ' + item.STATUS,
-            description: item.DESCRIPTION || item.NODE_KEY
+            title: requestLabel(item),
+            description: item.DESCRIPTION || 'No description provided',
+            wrapping: true
           }));
         }
         const selected = (a.value || []).find(v => v.NODE_KEY === detailsAsset.getSelectedKey());
@@ -116,6 +144,7 @@ sap.ui.define([
         returnButton.setEnabled(status === 'ASSIGNED');
       };
       assets.attachChange(updateActions);
+      assets.attachChange(updateAssetSummary);
       const page = new Page({
         title: 'Department Asset Operations',
         content: [new IconTabBar({
@@ -125,6 +154,7 @@ sap.ui.define([
             new Title({ text: 'Asset lifecycle' }),
             new Label({ text: 'Department asset', labelFor: assets }),
             assets,
+            assetSummary,
             new Label({ text: 'Employee', labelFor: employees }),
             employees,
             new Label({ text: 'Expected return date', labelFor: due }),
@@ -176,12 +206,30 @@ sap.ui.define([
             })),
             new Label({ text: 'Pending request', labelFor: requests }),
             requests,
-            button('Approve Request', () => invoke('reviewAssetRequest', {
-              requestId: requests.getSelectedKey(), approve: true, note: requestNote.getValue().trim()
-            })),
+            button('Approve Request', async () => {
+              const item = requestRows.find(r => r.NODE_KEY === requests.getSelectedKey());
+              if (!item) return MessageBox.error('Select a pending request.');
+              try {
+                await call('reviewAssetRequest', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', 'x-csrf-token': await token() },
+                  body: JSON.stringify({
+                    requestId: item.NODE_KEY, approve: true, note: requestNote.getValue().trim()
+                  })
+                });
+                const next = item.REQUEST_TYPE === 'RETURN'
+                  ? 'Next step: Open Asset Assignments and use Return Asset for the approved asset. Approval alone does not return it.'
+                  : 'Next step: An authorized Admin must perform the required maintenance lifecycle action. Approval alone does not start maintenance.';
+                nextStep.setText(next);
+                nextStep.setVisible(true);
+                await refresh();
+                MessageBox.information('Request approved. ' + next);
+              } catch (error) { MessageBox.error(error.message); }
+            }),
             button('Reject Request', () => invoke('reviewAssetRequest', {
               requestId: requests.getSelectedKey(), approve: false, note: requestNote.getValue().trim()
             })),
+            nextStep,
             button('Refresh', () => refresh().catch(err => MessageBox.error(err.message))),
             pending
           ] }).addStyleClass('sapUiContentPadding')
