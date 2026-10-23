@@ -9,7 +9,7 @@ const DISPOSAL_METHODS = ['RECYCLE', 'DONATE', 'RESELL', 'DESTROY', 'RETAIN'];
 
 export default cds.service.impl(async function () {
 
-    const { Assets, Employees, Categories, Vendors } = this.entities;
+    const { Assets, Employees, Departments, Categories, Vendors } = this.entities;
 
     // database entities (the lifecycle writes go straight to the tables)
     const db = {
@@ -221,6 +221,7 @@ export default cds.service.impl(async function () {
             NODE_KEY: randomUUID(),
             ASSET_NODE_KEY: asset.NODE_KEY,
             EMPLOYEE_NODE_KEY: employee.NODE_KEY,
+            ASSIGNED_BY_NODE_KEY: (await SELECT.one.from(db.Employees).columns('NODE_KEY').where({ EMAIL: loginOf(req) }))?.NODE_KEY ?? null,
             ASSIGNED_DATE: date,
             EXPECTED_RETURN_DATE: expectedReturnDate || null,
             ASSIGNMENT_STATUS: 'ACTIVE',
@@ -373,7 +374,8 @@ export default cds.service.impl(async function () {
             ASSET_NODE_KEY: asset.NODE_KEY,
             SERVICE_VENDOR_NODE_KEY: vendor.NODE_KEY,
             TYPE: type,
-            ISSUE: issue,
+            DESCRIPTION: issue,
+            REPORTED_BY_NODE_KEY: (await SELECT.one.from(db.Employees).columns('NODE_KEY').where({ EMAIL: loginOf(req) }))?.NODE_KEY ?? null,
             REPORTED_DATE: date,
             STATUS: 'OPEN'
         });
@@ -411,7 +413,7 @@ export default cds.service.impl(async function () {
         await checkTransitionDate(req, asset, date, 'Completion date');
 
         await UPDATE(db.MaintenanceRecords)
-            .set({ STATUS: 'COMPLETED', COMPLETED_DATE: date, RESOLUTION: resolution || null })
+            .set({ STATUS: 'COMPLETED', COMPLETED_DATE: date, OUTCOME: resolution || null })
             .where({ NODE_KEY: record.NODE_KEY });
 
         await setAsset(asset, { STATUS: 'AVAILABLE' });
@@ -497,7 +499,7 @@ export default cds.service.impl(async function () {
             ARCHIVED_AT: now,
             ARCHIVED_BY: loginOf(req),
             REASON: reason,
-            COMPLIANCE_REFERENCE: complianceReference || null,
+            DISPOSAL_CERT_NO: complianceReference || null,
             DISPOSAL_METHOD: asset.DISPOSAL_METHOD
         });
 
@@ -546,6 +548,12 @@ export default cds.service.impl(async function () {
             req.reject(409, `Employee number ${employee.EMPLOYEE_NO} already exists.`);
         }
 
+        if (employee.DEPARTMENT_NODE_KEY) {
+            const department = await SELECT.one.from(db.Departments).where({ NODE_KEY: employee.DEPARTMENT_NODE_KEY });
+            if (!department) req.reject(400, 'Department not found.');
+            if (!department.IS_ACTIVE && (!old || old.DEPARTMENT_NODE_KEY !== employee.DEPARTMENT_NODE_KEY)) req.reject(409, 'Cannot assign employees to an inactive department.');
+        }
+
         // offboarding: all assets must be returned before an employee is deactivated
         if (old && old.STATUS === 'ACTIVE' && employee.STATUS === 'INACTIVE') {
             const held = await SELECT.from(db.Assets).columns('ASSET_TAG')
@@ -559,6 +567,22 @@ export default cds.service.impl(async function () {
     this.before('DELETE', Employees, async (req) => {
         const used = await SELECT.one.from(db.AssetAssignments).where({ EMPLOYEE_NODE_KEY: req.data.NODE_KEY });
         if (used) req.reject(409, 'This employee has assignment history and cannot be deleted - set the status to INACTIVE instead.');
+    });
+
+    // ==================================================
+    // DEPARTMENTS (FR-027)
+    // ==================================================
+    this.before('NEW', Departments.drafts, req => { req.data.IS_ACTIVE ??= true; });
+    this.before(['CREATE', 'UPDATE'], Departments, async req => {
+        if (req.data.NAME !== undefined) req.data.NAME = req.data.NAME?.trim();
+        const old = req.event === 'UPDATE' ? await SELECT.one.from(db.Departments).where({ NODE_KEY: req.data.NODE_KEY }) : null;
+        const department = { ...old, ...req.data };
+        required(req, department.NAME, 'Department name is mandatory.');
+        const duplicate = await SELECT.one.from(db.Departments).where({ NAME: department.NAME, NODE_KEY: { '!=': department.NODE_KEY ?? '' } });
+        if (duplicate) req.reject(409, `Department ${department.NAME} already exists.`);
+    });
+    this.before('DELETE', Departments, async req => {
+        if (await SELECT.one.from(db.Employees).where({ DEPARTMENT_NODE_KEY: req.data.NODE_KEY })) req.reject(409, 'Department has employees. Reassign them or deactivate the department.');
     });
 
     // ==================================================
