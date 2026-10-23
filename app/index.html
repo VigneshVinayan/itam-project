@@ -67,6 +67,8 @@
                     kpi.overdueReturns > 0 ? "Error" : "Good");
                 addApp("Report-manage", "reports", "Reports & Export", "PDF export, download, e-mail",
                     "sap-icon://pdf-attachment", null, "Asset reports");
+                addApp("Manager-operations", "manageractions", "Department Operations", "Assign, transfer, return, review",
+                    "sap-icon://action-settings", null, "Department workflows");
                 addApp("Asset-overview", "overview", "Asset Overview", "Read-only asset list",
                     "sap-icon://inspection", kpi.assignedAssets, "Assigned assets", null, me.isAdmin);
             }
