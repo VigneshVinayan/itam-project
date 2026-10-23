@@ -22,7 +22,7 @@ const db = () => ({
 /** Validates the filter parameters; rejects the request on bad input. */
 export function readFilters(req) {
 
-    const { status, category, location, dateFrom, dateTo } = req.data;
+    const { status, category, location, dateFrom, dateTo, department } = req.data;
     const filters = {};
 
     if (status) {
@@ -30,6 +30,7 @@ export function readFilters(req) {
         filters.status = status;
     }
     if (category) filters.category = category;
+    if (department) filters.departmentScope = department;
     if (location?.trim()) filters.location = location.trim();
     if (dateFrom) {
         if (!isDate(dateFrom)) req.reject(400, 'dateFrom is not a valid date.');
@@ -75,6 +76,10 @@ export async function describeFilters(filters) {
         parts.push(`Category: ${category?.NAME ?? filters.category}`);
     }
     if (filters.location) parts.push(`Location: ${filters.location}`);
+    if (filters.departmentScope) {
+        const dept = await SELECT.one.from(db().Departments).columns('NAME').where({ NODE_KEY: filters.departmentScope });
+        parts.push(`Department: ${dept?.NAME ?? filters.departmentScope}`);
+    }
     if (filters.dateFrom || filters.dateTo) parts.push(`Date: ${filters.dateFrom ?? '...'} to ${filters.dateTo ?? '...'}`);
     return parts.length ? parts.join(' | ') : 'No filters (all data)';
 }
