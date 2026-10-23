@@ -443,7 +443,8 @@ annotate AssetAdminService.Employees with @(
         { Value: EMPLOYEE_NO },
         { Value: FULL_NAME },
         { Value: EMAIL },
-        { Value: DEPARTMENT },
+        // Show the human-readable name, never the generated UUID.
+        { Value: DEPARTMENT.NAME, Label: '{i18n>Department}' },
         { Value: LOCATION },
         { Value: STATUS }
     ],
