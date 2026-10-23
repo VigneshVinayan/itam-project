@@ -280,6 +280,7 @@ export default cds.service.impl(async function () {
             NODE_KEY: randomUUID(),
             ASSET_NODE_KEY: asset.NODE_KEY,
             EMPLOYEE_NODE_KEY: employee.NODE_KEY,
+            ASSIGNED_BY_NODE_KEY: (await SELECT.one.from(db.Employees).columns('NODE_KEY').where({ EMAIL: loginOf(req) }))?.NODE_KEY ?? null,
             ASSIGNED_DATE: date,
             EXPECTED_RETURN_DATE: assignment.EXPECTED_RETURN_DATE && assignment.EXPECTED_RETURN_DATE >= date
                 ? assignment.EXPECTED_RETURN_DATE : null,
