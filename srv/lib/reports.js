@@ -53,7 +53,7 @@ export function readFilters(req) {
 function whereOf(filters, prefix, dateField) {
 
     const where = {};
-    if (filters.departmentScope) where[`${prefix}CURRENT_HOLDER.DEPARTMENT_NODE_KEY`] = filters.departmentScope;
+    if (filters.departmentScope) where[`${prefix}MANAGING_DEPARTMENT_NODE_KEY`] = filters.departmentScope;
     if (filters.status) where[`${prefix}STATUS`] = filters.status;
     if (filters.category) where[`${prefix}CATEGORY_NODE_KEY`] = filters.category;
     if (filters.location) where[`${prefix}LOCATION`] = filters.location;
