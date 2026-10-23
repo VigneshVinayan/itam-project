@@ -131,6 +131,9 @@ service AssetAdminService {
     entity History as projection on database.transaction.OwnershipLedgers;
 
     @readonly
+    entity AssetRequests as projection on database.transaction.AssetRequests;
+
+    @readonly
     entity Maintenance as projection on database.transaction.MaintenanceRecords {
         *,
         case when STATUS = 'OPEN' then 2 else 3 end as STATUS_CRITICALITY : Integer
@@ -169,7 +172,11 @@ service AssetManagerService {
         end as STATUS_CRITICALITY : Integer
     };
 
-    @readonly entity Assignments as projection on database.transaction.AssetAssignments;
+    @readonly
+    entity AssetRequests as projection on database.transaction.AssetRequests;
+
+    @readonly
+    entity Assignments as projection on database.transaction.AssetAssignments;
     @readonly entity History     as projection on database.transaction.OwnershipLedgers;
     @readonly entity Maintenance as projection on database.transaction.MaintenanceRecords;
     @readonly entity Departments as projection on database.master.Departments;
@@ -291,6 +298,7 @@ service AssetManagerService {
 // ==================================================
 
 @path: '/odata/v4/user'
+@impl: 'srv/user-service.js'
 @requires: 'User'
 service AssetUserService {
 
@@ -308,6 +316,16 @@ service AssetUserService {
             else 0
         end as STATUS_CRITICALITY : Integer
     } where STATUS != 'ARCHIVED';
+
+    @readonly
+    @restrict: [{ grant: 'READ', where: 'REQUESTED_BY_EMAIL = $user' }]
+    entity AssetRequests as projection on database.transaction.AssetRequests {
+        *, REQUESTED_BY.EMAIL as REQUESTED_BY_EMAIL : String(255)
+    };
+
+    // Submits a request; no direct asset-state change is permitted.
+    action submitReturnRequest(asset : UUID, description : String(255)) returns UUID;
+    action submitMaintenanceRequest(asset : UUID, description : String(255)) returns UUID;
 
     // only own assignments
     @readonly
