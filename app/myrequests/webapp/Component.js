@@ -35,6 +35,14 @@ sap.ui.define([
             });
             const list = new List({ headerText: 'My requests' });
             const refresh = async () => {
+                const identity = await fetch('/odata/v4/app/whoAmI()', { credentials: 'same-origin' });
+                if (identity.ok) {
+                    const who = await identity.json();
+                    if (!who.employee) {
+                        MessageBox.warning('This login is not linked to an Employee record. Ask an Admin to set the Employee email to your exact login, or use a linked mock user in the hybrid profile.');
+                        return;
+                    }
+                }
                 const [assets, requests] = await Promise.all([
                     json('Assets?$select=NODE_KEY,ASSET_TAG,ASSET_NAME'),
                     json('AssetRequests?$orderby=REQUESTED_AT desc&$top=30')
@@ -72,7 +80,9 @@ sap.ui.define([
                     note.setValue('');
                     await refresh();
                 } catch (e) {
-                    MessageBox.error(e.message);
+                    MessageBox.error(e.message.includes('No employee matches the current login')
+                        ? 'Your login has no matching Employee in HANA. Ask an Admin to create or correct your Employee email, or check the hybrid login user.'
+                        : e.message);
                 }
             };
             const page = new Page({
