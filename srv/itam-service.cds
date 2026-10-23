@@ -160,7 +160,10 @@ service AssetAdminService {
 @requires: ['Manager', 'Admin']
 service AssetManagerService {
 
-    @readonly
+    @restrict: [
+        { grant: 'READ', to: ['Manager', 'Admin'] },
+        { grant: 'UPDATE', to: ['Manager', 'Admin'] }
+    ]
     entity Assets as projection on database.transaction.Assets {
         *,
         case
@@ -171,6 +174,12 @@ service AssetManagerService {
             else 0
         end as STATUS_CRITICALITY : Integer
     };
+
+    // Safe lifecycle actions preserve assignments and immutable ledger history.
+    action assignAsset(asset : UUID, employee : UUID, expectedReturnDate : Date, remarks : String(255)) returns String;
+    action transferAsset(asset : UUID, toEmployee : UUID, remarks : String(255)) returns String;
+    action returnAsset(asset : UUID, remarks : String(255)) returns String;
+    action updateAssignment(assignment : UUID, expectedReturnDate : Date, remarks : String(255)) returns String;
 
     @readonly
     entity AssetRequests as projection on database.transaction.AssetRequests;
