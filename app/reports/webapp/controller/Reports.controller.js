@@ -15,10 +15,10 @@ sap.ui.define(
     function (Controller, JSONModel, Column, ColumnListItem, Text, Label, Dialog, Button, TextArea, VBox, MessageToast) {
         "use strict";
 
-        const FILTERS = ["status", "category", "location", "dateFrom", "dateTo"];
+        const FILTERS = ["status", "category", "department", "location", "dateFrom", "dateTo"];
 
         const emptyFilters = () => ({
-            reportType: "ASSET_INVENTORY", status: "", category: "", location: "", dateFrom: "", dateTo: ""
+            reportType: "ASSET_INVENTORY", status: "", category: "", department: "", location: "", dateFrom: "", dateTo: ""
         });
 
         // unique key per e-mail request: a retry with the same key never sends twice (NFR-009)
@@ -133,8 +133,13 @@ sap.ui.define(
 
             onDownload: function () {
                 const result = this.state().getProperty("/export");
-                if (result && result.downloadUrl) {
-                    window.open(result.downloadUrl, "_blank");
+                if (!result?.downloadUrl) {
+                    this.message("Warning", "Export the report before downloading its PDF.");
+                    return;
+                }
+                const opened = window.open(result.downloadUrl, "_blank", "noopener");
+                if (!opened) {
+                    this.message("Warning", "Your browser blocked the PDF tab. Allow popups for BAS and try downloading again.");
                 }
             },
 
@@ -178,12 +183,15 @@ sap.ui.define(
                         if (result.status === "SENT") {
                             this.message("Success", this.i18n("emailSent", [result.recipients]));
                             this.emailDialog.close();
+                        } else if (result.status === "SIMULATED") {
+                            this.message("Warning", result.message || "E-mail was logged locally; it was not sent.");
+                            this.emailDialog.close();
                         } else if (result.status === "DUPLICATE") {
-                            this.message("Information", this.i18n("emailDuplicate", [result.message]));
+                            this.message("Information", result.message || this.i18n("emailDuplicate", [""]));
                             this.emailDialog.close();
                         } else {
                             // keep the dialog (and the request id) so "Send" can be retried safely
-                            this.message("Error", this.i18n("emailFailed", [result.message]));
+                            this.message("Error", result.message || this.i18n("emailFailed", ["Unknown delivery error"]));
                         }
                     })
                     .catch((error) => this.message("Error", this.i18n("emailFailed", [error.message])));
