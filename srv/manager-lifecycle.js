@@ -103,9 +103,10 @@ export function registerManagerLifecycle(service) {
         const date = today();
         if (date < old.ASSIGNED_DATE) req.reject(400, 'Transfer date precedes assignment.');
         await transition(req, asset, date);
-        await UPDATE(AssetAssignments).set({
+        const closed = await UPDATE(AssetAssignments).set({
             ASSIGNMENT_STATUS: 'TRANSFERRED', ACTUAL_RETURN_DATE: date
         }).where({ NODE_KEY: old.NODE_KEY, ASSIGNMENT_STATUS: 'ACTIVE' });
+        if (!closed) req.reject(409, 'Active assignment changed; retry transfer.');
         await INSERT.into(AssetAssignments).entries({
             NODE_KEY: randomUUID(), ASSET_NODE_KEY: asset.NODE_KEY,
             EMPLOYEE_NODE_KEY: employee.NODE_KEY, ASSIGNED_BY_NODE_KEY: manager?.NODE_KEY || null,
@@ -125,8 +126,9 @@ export function registerManagerLifecycle(service) {
         const date = today();
         if (date < old.ASSIGNED_DATE) req.reject(400, 'Return date precedes assignment.');
         await transition(req, asset, date);
-        await UPDATE(AssetAssignments).set({ ASSIGNMENT_STATUS: 'RETURNED', ACTUAL_RETURN_DATE: date })
+        const closed = await UPDATE(AssetAssignments).set({ ASSIGNMENT_STATUS: 'RETURNED', ACTUAL_RETURN_DATE: date })
             .where({ NODE_KEY: old.NODE_KEY, ASSIGNMENT_STATUS: 'ACTIVE' });
+        if (!closed) req.reject(409, 'Active assignment changed; retry return.');
         await UPDATE(Assets).set({ STATUS: 'AVAILABLE', CURRENT_HOLDER_NODE_KEY: null })
             .where({ NODE_KEY: asset.NODE_KEY, STATUS: 'ASSIGNED' });
         await ledger(req, asset, 'RETURNED', 'AVAILABLE', old.EMPLOYEE_NODE_KEY, null, req.data.remarks);
