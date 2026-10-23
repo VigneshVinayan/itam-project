@@ -1,0 +1,21 @@
+name: CAP validation
+on:
+  push:
+    branches: [feature/departments-er-alignment]
+  pull_request:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Compile CDS service model
+        run: npx cds compile srv/itam-service.cds
+      - name: Run CAP integration tests
+        run: npm test
