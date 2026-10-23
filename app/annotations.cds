@@ -463,6 +463,15 @@ annotate AssetAdminService.Employees with @(
         { $Type: 'UI.ReferenceFacet', Label: '{i18n>Contact}', Target: '@UI.FieldGroup#Contact' }
     ]
 ) {
+    DEPARTMENT @Common.ValueList: {
+        CollectionPath: 'Departments',
+        Parameters: [
+            { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: DEPARTMENT_NODE_KEY, ValueListProperty: 'NODE_KEY' },
+            { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'NAME' },
+            { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'COST_CENTER' },
+            { $Type: 'Common.ValueListParameterConstant', ValueListProperty: 'IS_ACTIVE', Constant: 'true' }
+        ]
+    };
     FULL_NAME @mandatory;
     EMAIL     @mandatory;
     STATUS    @Common.QuickInfo: 'ACTIVE or INACTIVE';
