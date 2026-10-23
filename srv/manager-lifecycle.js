@@ -57,6 +57,18 @@ export function registerManagerLifecycle(service) {
         if (asset.STATUS === 'ARCHIVED' || asset.STATUS === 'RETIRED') req.reject(409, 'Retired and archived assets cannot be edited.');
     });
 
+    service.before('UPDATE', service.entities.Assignments, async req => {
+        const id = req.data.NODE_KEY || req.params?.[0]?.NODE_KEY;
+        const assignment = await SELECT.one.from(AssetAssignments).where({ NODE_KEY: id });
+        if (!assignment) req.reject(404, 'Assignment not found.');
+        await assetForManager(req, assignment.ASSET_NODE_KEY);
+        if (assignment.ASSIGNMENT_STATUS !== 'ACTIVE') req.reject(409, 'Historical assignments cannot be edited.');
+        const permitted = new Set(['NODE_KEY', 'EXPECTED_RETURN_DATE', 'REMARKS']);
+        if (Object.keys(req.data).some(k => !permitted.has(k))) req.reject(403, 'Only remarks and expected return date may be changed.');
+        const due = req.data.EXPECTED_RETURN_DATE;
+        if (due && (!isDate(due) || due < assignment.ASSIGNED_DATE)) req.reject(400, 'Invalid expected return date.');
+    });
+
     service.on('assignAsset', async req => {
         const { asset, manager } = await assetForManager(req, req.data.asset);
         if (asset.STATUS !== 'AVAILABLE') req.reject(409, 'Only available assets can be assigned.');
