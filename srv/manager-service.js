@@ -38,9 +38,9 @@ export default cds.service.impl(async function () {
             return;
         }
         const deptAssets = await SELECT.from(Assets).columns('NODE_KEY')
-            .where({ CURRENT_HOLDER_NODE_KEY: { in: employeeIds } });
+            .where({ MANAGING_DEPARTMENT_NODE_KEY: self.DEPARTMENT_NODE_KEY });
         const assetIds = deptAssets.map(a => a.NODE_KEY);
-        if (!assetIds.length) req.reject(403, 'No assets assigned to the department.');
+        if (!assetIds.length) req.reject(403, 'No assets allocated to the department.');
         req.query.where(entity === 'Assets'
             ? { NODE_KEY: { in: assetIds } }
             : { ASSET_NODE_KEY: { in: assetIds } });
@@ -79,7 +79,9 @@ export default cds.service.impl(async function () {
         if (!description || description.length > 255) req.reject(400, 'Provide a maintenance description (1-255 characters).');
         const asset = await SELECT.one.from(Assets).where({ NODE_KEY: req.data.asset, STATUS: 'ASSIGNED' });
         if (!asset) req.reject(404, 'No assigned asset with that key.');
-        await checkDepartment(req, asset.CURRENT_HOLDER_NODE_KEY);
+        if (!req.user.is('Admin')) {
+            if (asset.MANAGING_DEPARTMENT_NODE_KEY !== actor.DEPARTMENT_NODE_KEY) req.reject(403, 'Asset does not belong to your department.');
+        }
         const duplicate = await SELECT.one.from(AssetRequests).where({
             ASSET_NODE_KEY: asset.NODE_KEY, REQUEST_TYPE: 'MAINTENANCE', STATUS: 'PENDING'
         });
