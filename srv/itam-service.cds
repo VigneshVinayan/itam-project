@@ -302,12 +302,14 @@ service AssetManagerService {
 @requires: 'User'
 service AssetUserService {
 
-    // hardware inventory without cost / retirement details
+    // A user sees only assets assigned to their identity.
     @readonly
+    @restrict: [{ grant: 'READ', where: 'HOLDER_EMAIL = $user' }]
     entity Assets as projection on database.transaction.Assets {
         NODE_KEY, ASSET_TAG, SERIAL_NUMBER, ASSET_NAME, LOCATION, STATUS,
         PURCHASE_DATE, WARRANTY_END, FIRST_DISTRIBUTION_DATE,
         CATEGORY, CURRENT_HOLDER,
+        CURRENT_HOLDER.EMAIL as HOLDER_EMAIL : String(255),
         case
             when STATUS = 'AVAILABLE'   then 3
             when STATUS = 'ASSIGNED'    then 5
