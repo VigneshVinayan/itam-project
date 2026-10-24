@@ -28,5 +28,7 @@ jobs:
           node --input-type=module -e "import fs from 'node:fs'; const xml=fs.readFileSync('app/reports/webapp/view/Reports.view.xml','utf8'); const bundle=fs.readFileSync('app/reports/webapp/i18n/i18n.properties','utf8'); const keys=new Set([...bundle.matchAll(/^([^#\\s=]+)=/gm)].map(m=>m[1])); const used=[...xml.matchAll(/\\{i18n>([^}]+)\\}/g)].map(m=>m[1]); const missing=used.filter(k=>!keys.has(k)); if(missing.length) {console.error('Missing report i18n keys',missing);process.exit(1)}"
       - name: Package Fiori apps
         run: npm run build:apps
+      - name: Test S/4HANA connector without external credentials
+        run: node --test test/s4hana.test.js
       - name: Run CAP integration tests
         run: npm test
