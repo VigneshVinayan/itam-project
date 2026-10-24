@@ -773,3 +773,30 @@ annotate AssetUserService.AssetHistory with @(
         { Value: REMARKS }
     ]
 );
+
+
+ // Employee self-service profile: explicit columns are required by Fiori Elements.
+ // Keep the profile read-only and do not expose other employees.
+annotate AssetUserService.Employees with @(
+    UI.HeaderInfo: {
+        TypeName: 'My Profile',
+        TypeNamePlural: 'My Profile',
+        Title: { Value: FULL_NAME },
+        Description: { Value: EMAIL }
+    },
+    UI.LineItem: [
+        { Value: FULL_NAME, Label: 'Full Name' },
+        { Value: EMAIL, Label: 'Email' },
+        { Value: DEPARTMENT.NAME, Label: 'Department' },
+        { Value: LOCATION, Label: 'Location' }
+    ],
+    UI.FieldGroup #General: { Data: [
+        { Value: FULL_NAME, Label: 'Full Name' },
+        { Value: EMAIL, Label: 'Email' },
+        { Value: DEPARTMENT.NAME, Label: 'Department' },
+        { Value: LOCATION, Label: 'Location' }
+    ]},
+    UI.Facets: [
+        { $Type: 'UI.ReferenceFacet', Label: 'Employee Details', Target: '@UI.FieldGroup#General' }
+    ]
+);
