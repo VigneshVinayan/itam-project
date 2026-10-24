@@ -15,9 +15,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm install --no-audit --no-fund
-      - name: Check hybrid login configuration
+      - name: Verify SAP XSUAA configuration
         run: |
-          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const p=JSON.parse(fs.readFileSync('package.json','utf8')); const a=p.cds.requires['[hybrid]'].auth; assert.equal(a.kind,'mocked'); for(const [user,role] of [['admin@itam-demo.com','Admin'],['manager@itam-demo.com','Manager'],['ravi.kumar@itam-demo.com','User']]) {assert.ok(a.users[user]); assert.ok(a.users[user].roles.includes(role));}"
+          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const p=JSON.parse(fs.readFileSync('package.json','utf8')); const a=p.cds.requires['[hybrid]'].auth; assert.equal(a,'xsuaa'); assert.equal(p.cds.requires.auth,'xsuaa'); assert.equal(p.cds.requires['[production]'].auth,'xsuaa'); assert.ok(p.dependencies['@sap/xssec']);"
       - name: Compile CDS service model
         run: npx cds compile srv/itam-service.cds
       - name: Compile Fiori annotations
