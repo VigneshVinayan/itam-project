@@ -184,15 +184,17 @@
                 var directCap = window.location.port === "4004" ||
                     /^port4004[-.]/.test(host);
                 if (directCap) {
-                    sap.m.MessageBox.information(
-                        "This local CAP session uses browser-cached login credentials. " +
-                        "To switch accounts, open ITAM in a different Chrome profile " +
-                        "or a fresh Incognito session. Closing this page does not clear the cached login.",
-                        {
-                            title: "Switch Account (Local Development)",
-                            onClose: function () { window.location.replace("about:blank"); }
-                        }
-                    );
+                    sap.ui.require(["sap/m/MessageBox"], function (MessageBox) {
+                        MessageBox.information(
+                            "This local CAP session uses browser-cached login credentials. " +
+                            "To switch accounts, open ITAM in a different Chrome profile " +
+                            "or a fresh Incognito session. Closing this page does not clear the cached login.",
+                            {
+                                title: "Switch Account (Local Development)",
+                                onClose: function () { window.location.replace("about:blank"); }
+                            }
+                        );
+                    });
                     return Promise.resolve();
                 }
                 window.location.assign("/do/logout");
