@@ -176,23 +176,18 @@
                 }
             });
 
-            // /do/logout is provided by the deployed SAP Approuter, not by cds watch.
-            // HTTP Basic authentication (mocked CAP users) is cached by the browser;
-            // JavaScript cannot reliably clear those credentials.
+            // The CAP port is an API server, not the SAP XSUAA login/logout endpoint.
+            // Real SAP sign-in and sign-out are managed by the SAP Approuter.
             sap.ushell.Container.registerLogout(function () {
                 var host = window.location.hostname;
-                var directCap = window.location.port === "4004" ||
-                    /^port4004[-.]/.test(host);
+                var directCap = window.location.port === "4004" || /^port4004[-.]/.test(host);
                 if (directCap) {
                     sap.ui.require(["sap/m/MessageBox"], function (MessageBox) {
                         MessageBox.information(
-                            "This local CAP session uses browser-cached login credentials. " +
-                            "To switch accounts, open ITAM in a different Chrome profile " +
-                            "or a fresh Incognito session. Closing this page does not clear the cached login.",
-                            {
-                                title: "Switch Account (Local Development)",
-                                onClose: function () { window.location.replace("about:blank"); }
-                            }
+                            "SAP account switching is available through the ITAM Approuter (port 5000). " +
+                            "Open the Approuter URL and choose Sign Out to end the XSUAA session. " +
+                            "The CAP API on port 4004 cannot log out an SAP account.",
+                            { title: "Open SAP Login via Approuter" }
                         );
                     });
                     return Promise.resolve();
