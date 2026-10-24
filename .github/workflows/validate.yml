@@ -1,7 +1,7 @@
 name: CAP validation
 on:
   push:
-    branches: [feature/departments-er-alignment]
+    branches: [feature/departments-er-alignment, feature/frd-v1.3-compliance]
   pull_request:
     branches: [main]
 jobs:
