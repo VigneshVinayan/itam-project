@@ -27,7 +27,29 @@
       },
       "[hybrid]": {
         "db": "hana",
-        "auth": "dummy"
+        "auth": {
+          "kind": "mocked",
+          "users": {
+            "admin@itam-demo.com": {
+              "password": "admin",
+              "roles": [
+                "Admin"
+              ]
+            },
+            "manager@itam-demo.com": {
+              "password": "manager",
+              "roles": [
+                "Manager"
+              ]
+            },
+            "ravi.kumar@itam-demo.com": {
+              "password": "user",
+              "roles": [
+                "User"
+              ]
+            }
+          }
+        }
       },
       "[development]": {
         "db": {
