@@ -75,6 +75,7 @@ type ReportAction : String(10) enum {
 };
 
 type ReportOutcome : String(10) enum {
+    simulated = 'SIMULATED'; // no provider configured: log only, not delivered
     success = 'SUCCESS';
     failed  = 'FAILED';
     denied  = 'DENIED';
