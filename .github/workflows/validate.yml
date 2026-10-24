@@ -19,13 +19,13 @@ jobs:
         run: npx cds compile srv/itam-service.cds
       - name: Compile Fiori annotations
         run: npx cds compile app/annotations.cds
-      - name: Check Fiori JavaScript and manifests
+      - name: Check all custom Fiori JavaScript, manifests and XML markup
         run: |
-          node --check app/myrequests/webapp/Component.js
-          node --check app/manageractions/webapp/Component.js
-          node --check app/myprofile/webapp/Component.js
-          node --check app/departments/webapp/Component.js
-          node -e "for (const a of ['myrequests','manageractions','myprofile','departments']) JSON.parse(require('fs').readFileSync('app/'+a+'/webapp/manifest.json','utf8'))"
+          find app -name '*.js' -print0 | xargs -0 -r -n1 node --check
+          node --input-type=module -e "import fs from 'node:fs'; import path from 'node:path'; for(const dir of fs.readdirSync('app')) {const p=path.join('app',dir,'webapp','manifest.json'); if(fs.existsSync(p)) JSON.parse(fs.readFileSync(p,'utf8'))}"
+      - name: Check report localization resource keys
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const xml=fs.readFileSync('app/reports/webapp/view/Reports.view.xml','utf8'); const bundle=fs.readFileSync('app/reports/webapp/i18n/i18n.properties','utf8'); const keys=new Set([...bundle.matchAll(/^([^#\\s=]+)=/gm)].map(m=>m[1])); const used=[...xml.matchAll(/\\{i18n>([^}]+)\\}/g)].map(m=>m[1]); const missing=used.filter(k=>!keys.has(k)); if(missing.length) {console.error('Missing report i18n keys',missing);process.exit(1)}"
       - name: Package Fiori apps
         run: npm run build:apps
       - name: Run CAP integration tests
