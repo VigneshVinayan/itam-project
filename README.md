@@ -16,6 +16,7 @@ Requirements: [`IT_Asset_Lifecycle_Manager_Functional_Requirements_v1_1 1 (1).do
 ## Data model
 
 ```
+Departments ──< Employees          Departments ──< Assets (managing department)
 AssetCategories ──< Assets >── Vendors
                       │  └──── CURRENT_HOLDER ──> Employees
                       ├──< AssetAssignments >── Employees        (one row per possession period)
@@ -29,7 +30,7 @@ ReportFiles (generated PDFs, time-limited)      ReportLogs (audit of export / do
 | File | Content |
 |---|---|
 | `db/common.cds` | reusable types and status enums |
-| `db/master.cds` | `context master`: **Employees**, **AssetCategories** (lifespan, active flag), **Vendors**; `context codes`: drop-down code lists |
+| `db/master.cds` | `context master`: **Departments**, **Employees** (department association), **AssetCategories** (lifespan, active flag), **Vendors**; `context codes`: drop-down code lists |
 | `db/schema.cds` | `context transaction`: **Assets**, **AssetAssignments**, **OwnershipLedgers**, **MaintenanceRecords**, **ArchiveRecords**; `context reporting`: **ReportFiles**, **ReportLogs** |
 
 Same conventions as [saurabh-1907/project1-sprint](https://github.com/saurabh-1907/project1-sprint/tree/feature/psa-cap-backend):
@@ -54,8 +55,8 @@ Only SAP technology is used:
 | Service | Path | Role | Content |
 |---|---|---|---|
 | `AssetAdminService` | `/odata/v4/admin` | Admin | Assets (+ lifecycle actions), Employees, Categories, Vendors, Assignments, History, Maintenance, Archive, ReportLogs |
-| `AssetManagerService` | `/odata/v4/manager` | Manager, Admin | read-only Assets / Assignments / History / Maintenance, `getDashboard`, `previewReport`, `exportReport`, `emailReport`, ReportFiles (download) |
-| `AssetUserService` | `/odata/v4/user` | User | Assets (inventory, no costs, no archived), own AssetAssignments, own AssetHistory |
+| `AssetManagerService` | `/odata/v4/manager` | Manager, Admin | department-scoped assets, assignment updates and lifecycle actions, maintenance requests/approval, history, dashboard, preview/PDF/e-mail/download |
+| `AssetUserService` | `/odata/v4/user` | User | own assigned assets (no costs), own assignments/history/profile, submit return and maintenance requests |
 | `AppService` | `/odata/v4/app` | any login | `whoAmI()`, `tileKpis()` for the launchpad |
 
 ### Lifecycle actions (bound to `Assets`, Admin)
@@ -78,8 +79,8 @@ asset's last ledger event. Ledger and archive rows reject UPDATE / DELETE on the
 | Role collection | Role | Launchpad tiles | Can do |
 |---|---|---|---|
 | **ITAM_Admin** | Admin | Asset Dashboard, Reports & Export, Manage Assets, Employees, Asset Categories, Vendors, Report Audit Log | lifecycle + master data, dashboard, reports |
-| **ITAM_Manager** | Manager | Asset Dashboard, Reports & Export, Asset Overview | dashboard, PDF export / download / e-mail, read-only operations – **no** admin actions |
-| **ITAM_User** | User | Hardware Inventory, My Assignments, My Asset History | read-only: inventory, own assignments, own history |
+| **ITAM_Manager** | Manager | Dashboard, Reports & Export, Asset Overview, Department Operations | manage departmental assets (details, assign, transfer, return), maintain assignments, submit/review requests, department-only reporting |
+| **ITAM_User** | User | My Hardware, My Assignments, My Asset History, My Profile, Asset Requests | read own profile/assets/history, submit own return/maintenance requests |
 
 The login e-mail links a user to an **Employee** (`Employees.EMAIL`). `…/odata/v4/app/whoAmI()` shows login, roles and linked employee.
 
@@ -90,8 +91,8 @@ The login e-mail links a user to an **Employee** (`Employees.EMAIL`). `…/odata
 | **Manage Assets** | List Report + Object Page (draft) | create / edit assets; header with status, holder, first distribution; facets General · Procurement · Current State · Assignments · Maintenance · History · Retirement/Archive; buttons **Assign, Transfer, Return, Send to Maintenance, Complete Maintenance, Retire, Archive** (enabled only when allowed) |
 | **Asset Dashboard** | SAPUI5 (analytical) | filters (status, category, location, procurement date); KPI tiles (total, utilisation, available, overdue returns, open maintenance, end-of-life soon, asset value); donut / bar charts with labels and values; **table with the same numbers** (NFR-011); drill-down to the asset list |
 | **Reports & Export** | SAPUI5 | report (inventory, assignments, maintenance, lifecycle history) + same filters → **Preview**, **Export PDF**, **Download PDF**, **E-Mail PDF** with success / failure message |
-| **Asset Overview** | List Report + Object Page (read-only) | manager view of assets, assignments, maintenance, history |
-| **Employees**, **Asset Categories**, **Vendors** | List Report + Object Page (draft) | master data; inactive categories / vendors are not selectable for new assets |
+| **Asset Overview** | List Report + Object Page | manager view of department assets, assignments, maintenance, history; use Department Operations for lifecycle writes |
+| **Departments**, **Employees**, **Asset Categories**, **Vendors** | List Report + Object Page (draft) | master data; inactive departments/categories/vendors are not selectable for new associations |
 | **Report Audit Log** | List Report | who exported / downloaded / e-mailed which report, filters, recipients, outcome |
 | **Hardware Inventory**, **My Assignments**, **My Asset History** | List Report + Object Page (read-only) | user views |
 
@@ -120,12 +121,12 @@ srv/mail-service.js      e-mail delivery (mail-api via destination, or log only)
 srv/lib/                 pdf.js (PDF writer), reports.js (filters, KPIs, report definitions), util.js
 app/index.html           SAP Fiori launchpad (sandbox), tiles by role
 app/annotations.cds      Fiori Elements UI annotations
-app/<name>/webapp        Fiori apps
+app/<name>/webapp        Fiori apps incl. departments, manageractions, myrequests, myprofile
 _i18n/i18n.properties    UI texts
 .deploy/app-router       SAP Approuter (XSUAA login)
 xs-security.json         XSUAA roles + role collections ITAM_Admin / ITAM_Manager / ITAM_User
 mta.yaml                 Cloud Foundry deployment
-test/itam.test.js        40 automated tests (npm test)
+test/itam.test.js        automated regression and role-workflow tests (npm test)
 ```
 
 > **Step-by-step guide:** [docs/BAS_RUN_AND_DEPLOY.md](docs/BAS_RUN_AND_DEPLOY.md) covers prerequisites and entitlements,
@@ -177,10 +178,14 @@ and the approuter `itam-application` (its URL is the app link). Role collections
 
 ## Tests
 
-`npm test` – 40 tests on an in-memory database with test logins (no HANA / XSUAA needed): roles and record-level
+`npm test` – integration tests on an in-memory database with test logins (no HANA / XSUAA needed): roles and record-level
 access, every lifecycle rule (FR-001 … FR-012), immutable ledger (OData and database), offboarding check, dashboard KPIs
 and filters, report preview, PDF content, download ownership + expiry, e-mail validation / idempotency / failure + retry,
 and the audit log.
+
+## Departments and role-workflow changes
+
+The `feature/departments-er-alignment` branch adds `Departments`, a managed asset department (so available assets can be assigned by department), and an `AssetRequests` workflow. All role-specific OData actions and new Fiori tiles are documented in [Department/Roles/HANA migration guide](docs/DEPARTMENTS_ROLES_AND_HANA_MIGRATION.md). Existing HANA data needs a non-destructive migration before deployment. The feature branch is validated by GitHub Actions (CDS compile and CAP tests). User requests create reviewable records; approval does not execute the asset lifecycle transition automatically. Physical asset deletion remains forbidden under FR-011.
 
 ## Not covered (see FRD)
 

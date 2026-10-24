@@ -36,6 +36,8 @@ context transaction {
         CONDITION         : common.String64;
         DISPOSAL_METHOD   : common.DisposalMethod;
 
+        // Department accountable for this asset, including while AVAILABLE.
+        MANAGING_DEPARTMENT : Association to master.Departments;
         CATEGORY       : Association to master.AssetCategories;
         VENDOR         : Association to master.Vendors;
         CURRENT_HOLDER : Association to master.Employees;
@@ -65,7 +67,23 @@ context transaction {
         REMARKS              : common.String255;
 
         ASSET    : Association to Assets;
-        EMPLOYEE : Association to master.Employees;
+        EMPLOYEE    : Association to master.Employees;
+        ASSIGNED_BY : Association to master.Employees;
+    }
+
+    // User-submitted requests do not directly mutate the asset lifecycle.
+    // Authorized managers/admins review them before lifecycle actions execute.
+    entity AssetRequests : managed {
+        key NODE_KEY : common.Guid;
+        REQUEST_TYPE : String(20); // RETURN or MAINTENANCE
+        STATUS       : String(20) default 'PENDING';
+        DESCRIPTION  : common.String255;
+        REQUESTED_AT : Timestamp;
+        RESOLVED_AT  : Timestamp;
+        DECISION_NOTE : common.String255;
+        ASSET        : Association to Assets;
+        REQUESTED_BY : Association to master.Employees;
+        RESOLVED_BY  : Association to master.Employees;
     }
 
     // Immutable: rows are only ever inserted (see srv/ledger-guard.js)
@@ -91,11 +109,15 @@ context transaction {
         key NODE_KEY : common.Guid;
 
         TYPE           : common.MaintenanceType;
-        ISSUE          : common.String255;
+        DESCRIPTION    : common.String255;
         REPORTED_DATE  : Date;
         COMPLETED_DATE : Date;
         STATUS         : common.MaintenanceStatus default 'OPEN';
-        RESOLUTION     : common.String255;
+        OUTCOME        : common.String255;
+        REPORTED_BY         : Association to master.Employees;
+        COST                : common.AmountT;
+        COVERED_BY_WARRANTY : Boolean default false;
+        NEXT_DUE_DATE       : Date;
 
         ASSET          : Association to Assets;
         SERVICE_VENDOR : Association to master.Vendors;
@@ -109,7 +131,7 @@ context transaction {
         ARCHIVED_AT          : Timestamp;
         ARCHIVED_BY          : common.String255;
         REASON               : common.String255;
-        COMPLIANCE_REFERENCE : common.String64;
+        DISPOSAL_CERT_NO     : common.String64;
         DISPOSAL_METHOD      : common.DisposalMethod;
 
         ASSET : Association to Assets;

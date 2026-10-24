@@ -22,7 +22,7 @@ const db = () => ({
 /** Validates the filter parameters; rejects the request on bad input. */
 export function readFilters(req) {
 
-    const { status, category, location, dateFrom, dateTo } = req.data;
+    const { status, category, location, dateFrom, dateTo, department } = req.data;
     const filters = {};
 
     if (status) {
@@ -30,6 +30,7 @@ export function readFilters(req) {
         filters.status = status;
     }
     if (category) filters.category = category;
+    if (department) filters.departmentScope = department;
     if (location?.trim()) filters.location = location.trim();
     if (dateFrom) {
         if (!isDate(dateFrom)) req.reject(400, 'dateFrom is not a valid date.');
@@ -53,6 +54,7 @@ export function readFilters(req) {
 function whereOf(filters, prefix, dateField) {
 
     const where = {};
+    if (filters.departmentScope) where[`${prefix}MANAGING_DEPARTMENT_NODE_KEY`] = filters.departmentScope;
     if (filters.status) where[`${prefix}STATUS`] = filters.status;
     if (filters.category) where[`${prefix}CATEGORY_NODE_KEY`] = filters.category;
     if (filters.location) where[`${prefix}LOCATION`] = filters.location;
@@ -74,6 +76,10 @@ export async function describeFilters(filters) {
         parts.push(`Category: ${category?.NAME ?? filters.category}`);
     }
     if (filters.location) parts.push(`Location: ${filters.location}`);
+    if (filters.departmentScope) {
+        const dept = await SELECT.one.from(db().Departments).columns('NAME').where({ NODE_KEY: filters.departmentScope });
+        parts.push(`Department: ${dept?.NAME ?? filters.departmentScope}`);
+    }
     if (filters.dateFrom || filters.dateTo) parts.push(`Date: ${filters.dateFrom ?? '...'} to ${filters.dateTo ?? '...'}`);
     return parts.length ? parts.join(' | ') : 'No filters (all data)';
 }
@@ -208,11 +214,11 @@ export const REPORTS = {
         dateField: 'REPORTED_DATE',
         orderBy: 'REPORTED_DATE desc',
         columns: [
-            'ASSET.ASSET_TAG as ASSET_TAG', 'ASSET.ASSET_NAME as ASSET_NAME', 'TYPE', 'ISSUE',
+            'ASSET.ASSET_TAG as ASSET_TAG', 'ASSET.ASSET_NAME as ASSET_NAME', 'TYPE', 'DESCRIPTION',
             'SERVICE_VENDOR.NAME as VENDOR', 'REPORTED_DATE', 'COMPLETED_DATE', 'STATUS'
         ],
         headers: ['Asset Tag', 'Asset', 'Type', 'Issue', 'Vendor', 'Reported', 'Completed', 'Status'],
-        row: (r) => [r.ASSET_TAG, r.ASSET_NAME, r.TYPE, r.ISSUE, r.VENDOR, r.REPORTED_DATE, r.COMPLETED_DATE, r.STATUS],
+        row: (r) => [r.ASSET_TAG, r.ASSET_NAME, r.TYPE, r.DESCRIPTION, r.VENDOR, r.REPORTED_DATE, r.COMPLETED_DATE, r.STATUS],
         chart: { title: 'Maintenance by status', field: 'STATUS' }
     },
 

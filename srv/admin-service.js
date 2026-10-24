@@ -9,7 +9,7 @@ const DISPOSAL_METHODS = ['RECYCLE', 'DONATE', 'RESELL', 'DESTROY', 'RETAIN'];
 
 export default cds.service.impl(async function () {
 
-    const { Assets, Employees, Categories, Vendors } = this.entities;
+    const { Assets, Employees, Departments, Categories, Vendors, Assignments, Maintenance } = this.entities;
 
     // database entities (the lifecycle writes go straight to the tables)
     const db = {
@@ -221,6 +221,7 @@ export default cds.service.impl(async function () {
             NODE_KEY: randomUUID(),
             ASSET_NODE_KEY: asset.NODE_KEY,
             EMPLOYEE_NODE_KEY: employee.NODE_KEY,
+            ASSIGNED_BY_NODE_KEY: (await SELECT.one.from(db.Employees).columns('NODE_KEY').where({ EMAIL: loginOf(req) }))?.NODE_KEY ?? null,
             ASSIGNED_DATE: date,
             EXPECTED_RETURN_DATE: expectedReturnDate || null,
             ASSIGNMENT_STATUS: 'ACTIVE',
@@ -279,6 +280,7 @@ export default cds.service.impl(async function () {
             NODE_KEY: randomUUID(),
             ASSET_NODE_KEY: asset.NODE_KEY,
             EMPLOYEE_NODE_KEY: employee.NODE_KEY,
+            ASSIGNED_BY_NODE_KEY: (await SELECT.one.from(db.Employees).columns('NODE_KEY').where({ EMAIL: loginOf(req) }))?.NODE_KEY ?? null,
             ASSIGNED_DATE: date,
             EXPECTED_RETURN_DATE: assignment.EXPECTED_RETURN_DATE && assignment.EXPECTED_RETURN_DATE >= date
                 ? assignment.EXPECTED_RETURN_DATE : null,
@@ -373,7 +375,8 @@ export default cds.service.impl(async function () {
             ASSET_NODE_KEY: asset.NODE_KEY,
             SERVICE_VENDOR_NODE_KEY: vendor.NODE_KEY,
             TYPE: type,
-            ISSUE: issue,
+            DESCRIPTION: issue,
+            REPORTED_BY_NODE_KEY: (await SELECT.one.from(db.Employees).columns('NODE_KEY').where({ EMAIL: loginOf(req) }))?.NODE_KEY ?? null,
             REPORTED_DATE: date,
             STATUS: 'OPEN'
         });
@@ -411,7 +414,7 @@ export default cds.service.impl(async function () {
         await checkTransitionDate(req, asset, date, 'Completion date');
 
         await UPDATE(db.MaintenanceRecords)
-            .set({ STATUS: 'COMPLETED', COMPLETED_DATE: date, RESOLUTION: resolution || null })
+            .set({ STATUS: 'COMPLETED', COMPLETED_DATE: date, OUTCOME: resolution || null })
             .where({ NODE_KEY: record.NODE_KEY });
 
         await setAsset(asset, { STATUS: 'AVAILABLE' });
@@ -497,7 +500,7 @@ export default cds.service.impl(async function () {
             ARCHIVED_AT: now,
             ARCHIVED_BY: loginOf(req),
             REASON: reason,
-            COMPLIANCE_REFERENCE: complianceReference || null,
+            DISPOSAL_CERT_NO: complianceReference || null,
             DISPOSAL_METHOD: asset.DISPOSAL_METHOD
         });
 
@@ -512,6 +515,76 @@ export default cds.service.impl(async function () {
 
         req.notify(`${asset.ASSET_TAG} archived.`);
         return `${asset.ASSET_TAG} archived`;
+    });
+
+    // ==================================================
+    // Direct, controlled updates of assignment and maintenance details.
+    // Lifecycle status changes must still go through bound actions.
+    // ==================================================
+    this.before('UPDATE', Assignments, async req => {
+        const key = req.data.NODE_KEY || req.params?.[0]?.NODE_KEY;
+        const old = await SELECT.one.from(db.AssetAssignments).where({ NODE_KEY: key });
+        if (!old) req.reject(404, 'Assignment not found.');
+        if (old.ASSIGNMENT_STATUS !== 'ACTIVE') req.reject(409, 'Historical assignments are immutable.');
+        const permitted = ['NODE_KEY', 'EXPECTED_RETURN_DATE', 'REMARKS'];
+        if (Object.keys(req.data).some(k => !permitted.includes(k))) {
+            req.reject(403, 'Only expected return date and remarks may be edited.');
+        }
+        const due = req.data.EXPECTED_RETURN_DATE;
+        if (due && (!isDate(due) || due < old.ASSIGNED_DATE)) {
+            req.reject(400, 'Expected return date must be on or after the assignment date.');
+        }
+    });
+
+    this.before('CREATE', Maintenance, async req => {
+        const data = req.data;
+        const asset = await SELECT.one.from(db.Assets).where({ NODE_KEY: data.ASSET_NODE_KEY });
+        if (!asset || asset.STATUS !== 'AVAILABLE') req.reject(409, 'Only AVAILABLE assets can enter maintenance.');
+        if (!MAINTENANCE_TYPES.includes(data.TYPE || 'REPAIR')) req.reject(400, 'Invalid maintenance type.');
+        required(req, data.DESCRIPTION, 'Maintenance description is mandatory.');
+        required(req, data.SERVICE_VENDOR_NODE_KEY, 'Service vendor is mandatory.');
+        const vendor = await SELECT.one.from(db.Vendors).where({ NODE_KEY: data.SERVICE_VENDOR_NODE_KEY });
+        if (!vendor?.IS_ACTIVE) req.reject(400, 'An active service vendor is required.');
+        const date = data.REPORTED_DATE || today();
+        await checkTransitionDate(req, asset, date, 'Reported date');
+        if (data.COST !== undefined && (data.COST !== null) && Number(data.COST) < 0) req.reject(400, 'Maintenance cost cannot be negative.');
+        if (data.NEXT_DUE_DATE && (!isDate(data.NEXT_DUE_DATE) || data.NEXT_DUE_DATE < date)) req.reject(400, 'Next maintenance date must not precede reported date.');
+        data.NODE_KEY ||= randomUUID();
+        data.TYPE ||= 'REPAIR';
+        data.REPORTED_DATE = date;
+        data.STATUS = 'OPEN';
+        data.COMPLETED_DATE = null;
+        data.OUTCOME = null;
+        data.REPORTED_BY_NODE_KEY ||= (await SELECT.one.from(db.Employees).columns('NODE_KEY').where({ EMAIL: loginOf(req) }))?.NODE_KEY ?? null;
+    });
+    this.after('CREATE', Maintenance, async (result, req) => {
+        const record = { ...req.data, ...result };
+        const asset = await SELECT.one.from(db.Assets).where({ NODE_KEY: record.ASSET_NODE_KEY });
+        const updated = await UPDATE(db.Assets).set({ STATUS: 'MAINTENANCE' })
+            .where({ NODE_KEY: asset.NODE_KEY, STATUS: 'AVAILABLE' });
+        if (!updated) req.reject(409, 'Asset changed while maintenance was being created.');
+        await writeLedger(req, asset, {
+            ACTION: 'MAINTENANCE_STARTED',
+            TRANSITION_DATE: record.REPORTED_DATE,
+            TO_STATUS: 'MAINTENANCE',
+            REMARKS: (record.DESCRIPTION || '').slice(0, 255)
+        });
+    });
+    this.before('UPDATE', Maintenance, async req => {
+        const key = req.data.NODE_KEY || req.params?.[0]?.NODE_KEY;
+        const old = await SELECT.one.from(db.MaintenanceRecords).where({ NODE_KEY: key });
+        if (!old) req.reject(404, 'Maintenance record not found.');
+        if (old.STATUS !== 'OPEN') req.reject(409, 'Completed maintenance records cannot be edited.');
+        const permitted = ['NODE_KEY', 'DESCRIPTION', 'TYPE', 'COST', 'COVERED_BY_WARRANTY', 'NEXT_DUE_DATE'];
+        if (Object.keys(req.data).some(k => !permitted.includes(k))) {
+            req.reject(403, 'Use Complete Maintenance to change lifecycle status or completion details.');
+        }
+        if (req.data.TYPE && !MAINTENANCE_TYPES.includes(req.data.TYPE)) req.reject(400, 'Invalid maintenance type.');
+        if (req.data.COST !== undefined && req.data.COST !== null && Number(req.data.COST) < 0) {
+            req.reject(400, 'Maintenance cost cannot be negative.');
+        }
+        if (req.data.NEXT_DUE_DATE && (!isDate(req.data.NEXT_DUE_DATE) ||
+            req.data.NEXT_DUE_DATE < old.REPORTED_DATE)) req.reject(400, 'Invalid next maintenance date.');
     });
 
     // ==================================================
@@ -546,6 +619,12 @@ export default cds.service.impl(async function () {
             req.reject(409, `Employee number ${employee.EMPLOYEE_NO} already exists.`);
         }
 
+        if (employee.DEPARTMENT_NODE_KEY) {
+            const department = await SELECT.one.from(db.Departments).where({ NODE_KEY: employee.DEPARTMENT_NODE_KEY });
+            if (!department) req.reject(400, 'Department not found.');
+            if (!department.IS_ACTIVE && (!old || old.DEPARTMENT_NODE_KEY !== employee.DEPARTMENT_NODE_KEY)) req.reject(409, 'Cannot assign employees to an inactive department.');
+        }
+
         // offboarding: all assets must be returned before an employee is deactivated
         if (old && old.STATUS === 'ACTIVE' && employee.STATUS === 'INACTIVE') {
             const held = await SELECT.from(db.Assets).columns('ASSET_TAG')
@@ -559,6 +638,22 @@ export default cds.service.impl(async function () {
     this.before('DELETE', Employees, async (req) => {
         const used = await SELECT.one.from(db.AssetAssignments).where({ EMPLOYEE_NODE_KEY: req.data.NODE_KEY });
         if (used) req.reject(409, 'This employee has assignment history and cannot be deleted - set the status to INACTIVE instead.');
+    });
+
+    // ==================================================
+    // DEPARTMENTS (FR-027)
+    // ==================================================
+    this.before('NEW', Departments.drafts, req => { req.data.IS_ACTIVE ??= true; });
+    this.before(['CREATE', 'UPDATE'], Departments, async req => {
+        if (req.data.NAME !== undefined) req.data.NAME = req.data.NAME?.trim();
+        const old = req.event === 'UPDATE' ? await SELECT.one.from(db.Departments).where({ NODE_KEY: req.data.NODE_KEY }) : null;
+        const department = { ...old, ...req.data };
+        required(req, department.NAME, 'Department name is mandatory.');
+        const duplicate = await SELECT.one.from(db.Departments).where({ NAME: department.NAME, NODE_KEY: { '!=': department.NODE_KEY ?? '' } });
+        if (duplicate) req.reject(409, `Department ${department.NAME} already exists.`);
+    });
+    this.before('DELETE', Departments, async req => {
+        if (await SELECT.one.from(db.Employees).where({ DEPARTMENT_NODE_KEY: req.data.NODE_KEY })) req.reject(409, 'Department has employees. Reassign them or deactivate the department.');
     });
 
     // ==================================================

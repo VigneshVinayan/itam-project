@@ -1,0 +1,35 @@
+name: CAP validation
+on:
+  push:
+    branches: [feature/departments-er-alignment]
+  pull_request:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Verify SAP XSUAA configuration
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const p=JSON.parse(fs.readFileSync('package.json','utf8')); const a=p.cds.requires['[hybrid]'].auth; assert.equal(a,'xsuaa'); assert.equal(p.cds.requires.auth,'xsuaa'); assert.equal(p.cds.requires['[production]'].auth,'xsuaa'); assert.ok(p.dependencies['@sap/xssec']);"
+      - name: Compile CDS service model
+        run: npx cds compile srv/itam-service.cds
+      - name: Compile Fiori annotations
+        run: npx cds compile app/annotations.cds
+      - name: Check Fiori JavaScript and manifests
+        run: |
+          node --check app/myrequests/webapp/Component.js
+          node --check app/manageractions/webapp/Component.js
+          node --check app/myprofile/webapp/Component.js
+          node --check app/departments/webapp/Component.js
+          node -e "for (const a of ['myrequests','manageractions','myprofile','departments']) JSON.parse(require('fs').readFileSync('app/'+a+'/webapp/manifest.json','utf8'))"
+      - name: Package Fiori apps
+        run: npm run build:apps
+      - name: Run CAP integration tests
+        run: npm test

@@ -107,13 +107,15 @@ describe('Login and roles (FR-013, FR-014, FR-025)', () => {
 
     it('Manager has read-only operational access', async () => {
         const { data } = await GET(`${MGR}/Assets`, MANAGER);
-        assert.equal(data.value.length, 10);
-        await fails(PATCH(`${MGR}/Assets(${A3})`, { LOCATION: 'Pune' }, MANAGER), 405);
+        assert.equal(data.value.length, 2); // Procurement's available assets
+        await PATCH(`${MGR}/Assets(${A3})`, { LOCATION: 'Bengaluru' }, MANAGER);
+        await fails(PATCH(`${MGR}/Assets(${A3})`, { STATUS: 'ARCHIVED' }, MANAGER), 403);
     });
 
     it('User sees the inventory without costs and without archived assets (FR-002)', async () => {
         const { data } = await GET(`${USR}/Assets`, USER);
-        assert.equal(data.value.length, 9);
+        assert.equal(data.value.length, 1);
+        assert.ok(data.value.every(a => a.HOLDER_EMAIL === 'ravi.kumar@itam-demo.com'));
         assert.ok(!data.value.some(a => a.NODE_KEY === A8));
         assert.ok(!('PURCHASE_COST' in data.value[0]));
     });
@@ -145,7 +147,7 @@ describe('Login and roles (FR-013, FR-014, FR-025)', () => {
 describe('Dashboard KPIs and filters (FR-021, FR-026)', () => {
 
     it('shows the lifecycle KPIs', async () => {
-        const { data } = await GET(`${MGR}/getDashboard()`, MANAGER);
+        const { data } = await GET(`${MGR}/getDashboard()`, ADMIN);
         assert.equal(data.totalAssets, 10);
         assert.deepEqual([data.available, data.assigned, data.inMaintenance, data.retired, data.archived], [4, 3, 1, 1, 1]);
         assert.equal(Number(data.utilisationPct), 37.5);          // 3 assigned / 8 in service
@@ -159,20 +161,20 @@ describe('Dashboard KPIs and filters (FR-021, FR-026)', () => {
     });
 
     it('applies status / category / location / date filters', async () => {
-        const { data: chennai } = await GET(`${MGR}/getDashboard(status='ASSIGNED',location='Chennai')`, MANAGER);
+        const { data: chennai } = await GET(`${MGR}/getDashboard(status='ASSIGNED',location='Chennai')`, ADMIN);
         assert.equal(chennai.totalAssets, 1);
         assert.equal(chennai.overdueReturns, 1);
 
-        const { data: laptops } = await GET(`${MGR}/getDashboard(category=${LAPTOP})`, MANAGER);
+        const { data: laptops } = await GET(`${MGR}/getDashboard(category=${LAPTOP})`, ADMIN);
         assert.equal(laptops.totalAssets, 7);
 
-        const { data: recent } = await GET(`${MGR}/getDashboard(dateFrom=2025-01-01,dateTo=2026-12-31)`, MANAGER);
+        const { data: recent } = await GET(`${MGR}/getDashboard(dateFrom=2025-01-01,dateTo=2026-12-31)`, ADMIN);
         assert.equal(recent.totalAssets, 3);                      // AST-0001, -0003, -0009
     });
 
     it('rejects invalid filters', async () => {
-        await fails(GET(`${MGR}/getDashboard(status='BROKEN')`, MANAGER), 400);
-        await fails(GET(`${MGR}/getDashboard(dateFrom=2026-05-01,dateTo=2026-01-01)`, MANAGER), 400);
+        await fails(GET(`${MGR}/getDashboard(status='BROKEN')`, ADMIN), 400);
+        await fails(GET(`${MGR}/getDashboard(dateFrom=2026-05-01,dateTo=2026-01-01)`, ADMIN), 400);
     });
 });
 
@@ -183,24 +185,24 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
     let file;
 
     it('previews a report with the same filters', async () => {
-        const { data: all } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS')`, MANAGER);
+        const { data: all } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS')`, ADMIN);
         assert.equal(all.rowCount, 7);
         assert.equal(all.columns[0], 'Asset Tag');
 
-        const { data: assigned } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS',status='ASSIGNED')`, MANAGER);
+        const { data: assigned } = await GET(`${MGR}/previewReport(reportType='ASSIGNMENTS',status='ASSIGNED')`, ADMIN);
         assert.equal(assigned.rowCount, 3);
         assert.match(assigned.filters, /Status: ASSIGNED/);
 
-        await fails(GET(`${MGR}/previewReport(reportType='SALARIES')`, MANAGER), 400);
+        await fails(GET(`${MGR}/previewReport(reportType='SALARIES')`, ADMIN), 400);
     });
 
     it('exports a valid PDF with title, filters and the filtered rows', async () => {
-        const { data } = await POST(`${MGR}/exportReport`, { reportType: 'ASSET_INVENTORY', status: 'ASSIGNED' }, MANAGER);
+        const { data } = await POST(`${MGR}/exportReport`, { reportType: 'ASSET_INVENTORY', status: 'ASSIGNED' }, ADMIN);
         assert.equal(data.rowCount, 3);
         assert.match(data.downloadUrl, /ReportFiles\(.+\)\/CONTENT$/);
         file = data;
 
-        const response = await GET(data.downloadUrl, { ...MANAGER, responseType: 'arraybuffer' });
+        const response = await GET(data.downloadUrl, { ...ADMIN, responseType: 'arraybuffer' });
         assert.equal(response.headers['content-type'], 'application/pdf');
         const pdf = Buffer.from(response.data).toString('latin1');
         assert.ok(pdf.startsWith('%PDF-1.4'));
@@ -212,23 +214,24 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
     });
 
     it('only the requester can download, and only until the link expires (NFR-010)', async () => {
-        await fails(GET(file.downloadUrl, ADMIN), 404);
+        await fails(GET(file.downloadUrl, MANAGER), 404);
 
         await cds.run(cds.ql.UPDATE('itam.db.reporting.ReportFiles')
             .set({ EXPIRES_AT: '2020-01-01T00:00:00Z' }).where({ NODE_KEY: file.fileId }));
-        await fails(GET(file.downloadUrl, MANAGER), 410);
+        await fails(GET(file.downloadUrl, ADMIN), 410);
     });
 
     it('e-mails the PDF to validated recipients', async () => {
         const mail = await cds.connect.to('mail');
         const sentBefore = mail.sent.length;
 
-        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: '' }, MANAGER), 400);
-        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com, not-an-email' }, MANAGER), 400);
+        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: '' }, ADMIN), 400);
+        await fails(POST(`${MGR}/emailReport`, { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com, not-an-email' }, ADMIN), 400);
 
         const { data } = await POST(`${MGR}/emailReport`,
-            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com; head.procurement@itam-demo.com', requestId: 'req-1' }, MANAGER);
-        assert.equal(data.status, 'SENT');
+            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com; head.procurement@itam-demo.com', requestId: 'req-1' }, ADMIN);
+        assert.equal(data.status, 'SIMULATED');
+        assert.match(data.message, /not delivered/i);
         assert.equal(mail.sent.length, sentBefore + 1);
 
         const sent = mail.sent.at(-1);
@@ -242,7 +245,7 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         const sentBefore = mail.sent.length;
 
         const { data } = await POST(`${MGR}/emailReport`,
-            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com', requestId: 'req-1' }, MANAGER);
+            { reportType: 'MAINTENANCE', recipients: 'cfo@itam-demo.com', requestId: 'req-1' }, ADMIN);
         assert.equal(data.status, 'DUPLICATE');
         assert.equal(mail.sent.length, sentBefore);
     });
@@ -256,13 +259,13 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         }));
 
         const { data: failed } = await POST(`${MGR}/emailReport`,
-            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, MANAGER);
+            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, ADMIN);
         assert.equal(failed.status, 'FAILED');
 
         failing = false;
         const { data: retried } = await POST(`${MGR}/emailReport`,
-            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, MANAGER);
-        assert.equal(retried.status, 'SENT');
+            { reportType: 'ASSET_INVENTORY', recipients: 'cfo@itam-demo.com', requestId: 'req-2' }, ADMIN);
+        assert.equal(retried.status, 'SIMULATED');
     });
 
     it('audits export, download and e-mail without storing report contents (NFR-012)', async () => {
@@ -270,9 +273,9 @@ describe('Reports: preview, PDF export / download, e-mail (FR-022 .. FR-024, FR-
         const actions = data.value.map(l => `${l.ACTION}:${l.OUTCOME}`);
         assert.ok(actions.includes('EXPORT:SUCCESS'));
         assert.ok(actions.includes('DOWNLOAD:SUCCESS'));
-        assert.ok(actions.includes('EMAIL:SUCCESS'));
+        assert.ok(actions.includes('EMAIL:SIMULATED'));
         assert.ok(actions.includes('EMAIL:FAILED'));
-        assert.ok(data.value.every(l => l.REQUESTED_BY === 'manager@itam-demo.com'));
+        assert.ok(data.value.every(l => l.REQUESTED_BY === 'admin@itam-demo.com'));
         assert.ok(!('CONTENT' in data.value[0]));
 
         await fails(GET(`${MGR}/ReportFiles`, USER), 403);
@@ -423,7 +426,7 @@ describe('Asset lifecycle (FR-003 .. FR-012)', () => {
         assert.equal(asset.STATUS, 'ARCHIVED');
 
         const { data } = await GET(`${ADM}/Archive?$filter=ASSET_NODE_KEY eq ${key}`, ADMIN);
-        assert.equal(data.value[0].COMPLIANCE_REFERENCE, 'EW-2026-200');
+        assert.equal(data.value[0].DISPOSAL_CERT_NO, 'EW-2026-200');
         assert.equal(data.value[0].ARCHIVED_BY, 'admin@itam-demo.com');
 
         await fails(POST(`${active('Assets', key)}/AssetAdminService.draftEdit`, { PreserveChanges: true }, ADMIN), 409, /archived/);
@@ -482,5 +485,132 @@ describe('Employees, categories, vendors (FR-016, FR-017)', () => {
     it('records of the seed data stay consistent', async () => {
         const asset = await getAsset(A1);
         assert.equal(asset.CURRENT_HOLDER_NODE_KEY, RAVI);
+    });
+});
+
+describe('Department-scoped Manager and User workflows (FR-027/028)', () => {
+    const VIKRAM = '20000000-0000-4000-8000-000000000002';
+
+    it('allows Manager to assign and return their departmental available asset', async () => {
+        const { data: assigned } = await POST(`${MGR}/assignAsset`, {
+            asset: A3, employee: VIKRAM, remarks: 'Manager issue'
+        }, MANAGER);
+        assert.match(assigned.value, /assigned/i);
+        const { data: asset } = await GET(`${MGR}/Assets(${A3})`, MANAGER);
+        assert.equal(asset.STATUS, 'ASSIGNED');
+        assert.equal(asset.CURRENT_HOLDER_NODE_KEY, VIKRAM);
+        await fails(POST(`${MGR}/transferAsset`, {
+            asset: A3, toEmployee: RAVI, remarks: 'Cross-department'
+        }, MANAGER), 403);
+        const { data: returned } = await POST(`${MGR}/returnAsset`, {
+            asset: A3, remarks: 'Returned to department stock'
+        }, MANAGER);
+        assert.match(returned.value, /returned/i);
+        const { data: available } = await GET(`${MGR}/Assets(${A3})`, MANAGER);
+        assert.equal(available.STATUS, 'AVAILABLE');
+    });
+
+    it('permits users to request return of only their own assigned assets', async () => {
+        await fails(POST(`${USR}/submitReturnRequest`, {
+            asset: A3, description: 'Not mine'
+        }, USER), 403);
+        const { data: requestId } = await POST(`${USR}/submitReturnRequest`, {
+            asset: A1, description: 'Request collection'
+        }, USER);
+        assert.ok(requestId.value);
+        await fails(POST(`${USR}/submitReturnRequest`, {
+            asset: A1, description: 'Duplicate'
+        }, USER), 409);
+        await fails(POST(`${MGR}/reviewAssetRequest`, {
+            requestId: requestId.value, approve: true, note: 'Outside department'
+        }, MANAGER), 403);
+        const { data: status } = await POST(`${MGR}/reviewAssetRequest`, {
+            requestId: requestId.value, approve: true, note: 'Approved for collection'
+        }, ADMIN);
+        assert.equal(status.value, 'APPROVED');
+    });
+
+    it('rejects maintenance requests for other users assets and requires a description', async () => {
+        await fails(POST(`${USR}/submitMaintenanceRequest`, {
+            asset: A1, description: ''
+        }, USER), 400);
+        await fails(POST(`${USR}/submitMaintenanceRequest`, {
+            asset: A3, description: 'Wrong owner'
+        }, USER), 403);
+    });
+});
+
+describe('Department management, assignment edits and maintenance CRUD', () => {
+    const A5 = '40000000-0000-4000-8000-000000000005';
+    const ENGINEERING = '21000000-0000-4000-8000-000000000003';
+
+    it('exposes departments and prevents deleting referenced departments', async () => {
+        const { data } = await GET(`${ADM}/Departments`, ADMIN);
+        assert.equal(data.value.length, 5);
+        assert.ok(data.value.some(d => d.NAME === 'Engineering'));
+        await fails(DELETE(active('Departments', ENGINEERING), ADMIN), 409);
+    });
+
+    it('permits PATCH of active assignment dates but rejects status tampering', async () => {
+        const { data } = await GET(`${ADM}/Assignments?$filter=ASSET_NODE_KEY eq ${A1}`, ADMIN);
+        const activeAssignment = data.value.find(a => a.ASSIGNMENT_STATUS === 'ACTIVE');
+        assert.ok(activeAssignment);
+        await PATCH(`${ADM}/Assignments(${activeAssignment.NODE_KEY})`, {
+            EXPECTED_RETURN_DATE: '2028-12-31'
+        }, ADMIN);
+        await fails(PATCH(`${ADM}/Assignments(${activeAssignment.NODE_KEY})`, {
+            ASSIGNMENT_STATUS: 'RETURNED'
+        }, ADMIN), 403);
+        await fails(PATCH(`${MGR}/Assignments(${activeAssignment.NODE_KEY})`, {
+            REMARKS: 'Not my team'
+        }, MANAGER), 403);
+    });
+
+    it('creates and updates maintenance without bypassing lifecycle actions', async () => {
+        const reportedDate = new Date().toISOString().slice(0, 10);
+        const { data: maintenance } = await POST(`${ADM}/Maintenance`, {
+            ASSET_NODE_KEY: A5,
+            SERVICE_VENDOR_NODE_KEY: FIXIT,
+            TYPE: 'REPAIR',
+            DESCRIPTION: 'Display malfunction',
+            REPORTED_DATE: reportedDate,
+            COST: 120.50,
+            COVERED_BY_WARRANTY: true
+        }, ADMIN);
+        assert.ok(maintenance.NODE_KEY);
+        assert.equal((await getAsset(A5)).STATUS, 'MAINTENANCE');
+        await PATCH(`${ADM}/Maintenance(${maintenance.NODE_KEY})`, {
+            COST: 150.00, NEXT_DUE_DATE: '2027-11-01'
+        }, ADMIN);
+        await fails(PATCH(`${ADM}/Maintenance(${maintenance.NODE_KEY})`, {
+            STATUS: 'COMPLETED'
+        }, ADMIN), 403);
+        const { data: result } = await POST(action(A5, 'completeMaintenance'), {
+            completedDate: reportedDate, resolution: 'Fixed'
+        }, ADMIN);
+        assert.match(result.value, /completed/i);
+        assert.equal((await getAsset(A5)).STATUS, 'AVAILABLE');
+    });
+});
+
+describe('Department reporting and self-profile isolation', () => {
+    const PROCUREMENT = '21000000-0000-4000-8000-000000000002';
+    const ENGINEERING = '21000000-0000-4000-8000-000000000003';
+
+    it('scopes Manager dashboard and report to procurement assets', async () => {
+        const { data: mgr } = await GET(`${MGR}/getDashboard()`, MANAGER);
+        assert.equal(mgr.totalAssets, 2);
+        const { data: report } = await GET(`${MGR}/previewReport(reportType='ASSET_INVENTORY')`, MANAGER);
+        assert.equal(report.rowCount, 2);
+        await fails(GET(`${MGR}/getDashboard(department=${ENGINEERING})`, MANAGER), 403);
+        const { data: admin } = await GET(`${MGR}/getDashboard(department=${PROCUREMENT})`, ADMIN);
+        assert.equal(admin.totalAssets, 2);
+    });
+
+    it('lets User read only their own employee profile', async () => {
+        const { data } = await GET(`${USR}/Employees`, USER);
+        assert.equal(data.value.length, 1);
+        assert.equal(data.value[0].EMAIL, 'ravi.kumar@itam-demo.com');
+        await fails(PATCH(`${USR}/Employees(${RAVI})`, { LOCATION: 'Outside' }, USER), 405);
     });
 });

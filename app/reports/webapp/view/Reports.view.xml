@@ -56,6 +56,13 @@
                                 </Select>
                             </VBox>
                             <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
+                                <Label text="Department" labelFor="department" />
+                                <Select id="department" selectedKey="{view>/filters/department}" forceSelection="false" width="12rem"
+                                    items="{path: '/Departments', parameters: {$orderby: 'NAME'}, templateShareable: false}">
+                                    <core:Item key="{NODE_KEY}" text="{NAME}" />
+                                </Select>
+                            </VBox>
+                            <VBox class="sapUiSmallMarginEnd sapUiTinyMarginBottom">
                                 <Label text="{i18n>filterLocation}" labelFor="location" />
                                 <Input id="location" value="{view>/filters/location}" width="11rem" submit=".onPreview" />
                             </VBox>

@@ -21,10 +21,38 @@ annotate db.transaction.Assets with {
     RETIREMENT_REASON       @title: '{i18n>RetirementReason}';
     CONDITION               @title: '{i18n>Condition}';
     DISPOSAL_METHOD         @title: '{i18n>DisposalMethod}';
+    MANAGING_DEPARTMENT     @title: 'Managing Department' @Common.Text: MANAGING_DEPARTMENT.NAME @Common.TextArrangement: #TextOnly;
     CATEGORY                @title: '{i18n>Category}'       @Common.Text: CATEGORY.NAME            @Common.TextArrangement: #TextOnly;
     VENDOR                  @title: '{i18n>Vendor}'         @Common.Text: VENDOR.NAME              @Common.TextArrangement: #TextOnly;
     CURRENT_HOLDER          @title: '{i18n>CurrentHolder}'  @Common.Text: CURRENT_HOLDER.FULL_NAME @Common.TextArrangement: #TextOnly;
 };
+
+annotate db.master.Departments with {
+    NODE_KEY    @UI.Hidden;
+    NAME        @title: 'Department Name';
+    COST_CENTER @title: 'Cost Center';
+    IS_ACTIVE   @title: 'Active';
+};
+
+annotate AssetAdminService.Departments with @(
+    UI.HeaderInfo: {
+        TypeName: 'Department',
+        TypeNamePlural: 'Departments',
+        Title: { Value: NAME }
+    },
+    UI.SelectionFields: [NAME, IS_ACTIVE],
+    UI.LineItem: [
+        { Value: NAME },
+        { Value: COST_CENTER },
+        { Value: IS_ACTIVE }
+    ],
+    UI.Facets: [{ $Type: 'UI.ReferenceFacet', Label: 'Department', Target: '@UI.FieldGroup#General' }],
+    UI.FieldGroup #General: { Data: [
+        { Value: NAME },
+        { Value: COST_CENTER },
+        { Value: IS_ACTIVE }
+    ]}
+);
 
 annotate db.master.Employees with {
     NODE_KEY    @UI.Hidden;
@@ -82,11 +110,11 @@ annotate db.transaction.OwnershipLedgers with {
 annotate db.transaction.MaintenanceRecords with {
     NODE_KEY       @UI.Hidden;
     TYPE           @title: '{i18n>MaintenanceType}';
-    ISSUE          @title: '{i18n>Issue}';
+    DESCRIPTION          @title: '{i18n>Issue}';
     REPORTED_DATE  @title: '{i18n>ReportedDate}';
     COMPLETED_DATE @title: '{i18n>CompletedDate}';
     STATUS         @title: '{i18n>Status}';
-    RESOLUTION     @title: '{i18n>Resolution}';
+    OUTCOME     @title: '{i18n>Resolution}';
     ASSET          @title: '{i18n>Asset}'         @Common.Text: ASSET.ASSET_TAG      @Common.TextArrangement: #TextOnly;
     SERVICE_VENDOR @title: '{i18n>ServiceVendor}' @Common.Text: SERVICE_VENDOR.NAME  @Common.TextArrangement: #TextOnly;
 };
@@ -96,7 +124,7 @@ annotate db.transaction.ArchiveRecords with {
     ARCHIVED_AT          @title: '{i18n>ArchivedAt}';
     ARCHIVED_BY          @title: '{i18n>ArchivedBy}';
     REASON               @title: '{i18n>Reason}';
-    COMPLIANCE_REFERENCE @title: '{i18n>ComplianceReference}';
+    DISPOSAL_CERT_NO @title: '{i18n>ComplianceReference}';
     DISPOSAL_METHOD      @title: '{i18n>DisposalMethod}';
 };
 
@@ -232,7 +260,7 @@ annotate AssetAdminService.Assets with @(
         Description    : { Value: ASSET_NAME }
     },
     // FR-018: search and filter by asset no., serial, category, status, owner, vendor, location
-    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, LOCATION ],
+    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, MANAGING_DEPARTMENT_NODE_KEY, LOCATION ],
     UI.PresentationVariant: { SortOrder: [{ Property: ASSET_TAG }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { $Type: 'UI.DataFieldForAction', Action: 'AssetAdminService.assignAsset',         Label: '{i18n>AssignAsset}' },
@@ -364,12 +392,12 @@ annotate AssetAdminService.Maintenance with @(
     UI.PresentationVariant: { SortOrder: [{ Property: REPORTED_DATE, Descending: true }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { Value: TYPE },
-        { Value: ISSUE },
+        { Value: DESCRIPTION },
         { Value: SERVICE_VENDOR_NODE_KEY },
         { Value: REPORTED_DATE },
         { Value: COMPLETED_DATE },
         { Value: STATUS, Criticality: STATUS_CRITICALITY, CriticalityRepresentation: #WithIcon },
-        { Value: RESOLUTION }
+        { Value: OUTCOME }
     ]
 );
 
@@ -392,7 +420,7 @@ annotate AssetAdminService.Archive with @(
         { Value: ARCHIVED_AT },
         { Value: ARCHIVED_BY },
         { Value: REASON },
-        { Value: COMPLIANCE_REFERENCE },
+        { Value: DISPOSAL_CERT_NO },
         { Value: DISPOSAL_METHOD }
     ]
 );
@@ -409,20 +437,21 @@ annotate AssetAdminService.Employees with @(
         Title          : { Value: FULL_NAME },
         Description    : { Value: EMPLOYEE_NO }
     },
-    UI.SelectionFields: [ FULL_NAME, DEPARTMENT, LOCATION, STATUS ],
+    UI.SelectionFields: [ FULL_NAME, DEPARTMENT_NODE_KEY, LOCATION, STATUS ],
     UI.PresentationVariant: { SortOrder: [{ Property: EMPLOYEE_NO }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { Value: EMPLOYEE_NO },
         { Value: FULL_NAME },
         { Value: EMAIL },
-        { Value: DEPARTMENT },
+        // Show the human-readable name, never the generated UUID.
+        { Value: DEPARTMENT.NAME, Label: '{i18n>Department}' },
         { Value: LOCATION },
         { Value: STATUS }
     ],
     UI.FieldGroup #General: { Data: [
         { Value: EMPLOYEE_NO },
         { Value: FULL_NAME },
-        { Value: DEPARTMENT },
+        { Value: DEPARTMENT_NODE_KEY },
         { Value: LOCATION },
         { Value: STATUS }
     ]},
@@ -435,6 +464,19 @@ annotate AssetAdminService.Employees with @(
         { $Type: 'UI.ReferenceFacet', Label: '{i18n>Contact}', Target: '@UI.FieldGroup#Contact' }
     ]
 ) {
+    // Bind the editable field to the real scalar FK so FE can render a ComboBox.
+    DEPARTMENT_NODE_KEY @title: '{i18n>Department}'
+                        @Common.Text: DEPARTMENT.NAME
+                        @Common.TextArrangement: #TextOnly
+                        @Common.ValueListWithFixedValues
+                        @Common.ValueList: {
+        CollectionPath: 'Departments',
+        Parameters: [
+            { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: DEPARTMENT_NODE_KEY, ValueListProperty: 'NODE_KEY' },
+            { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'NAME' },
+            { $Type: 'Common.ValueListParameterConstant', ValueListProperty: 'IS_ACTIVE', Constant: 'true' }
+        ]
+    };
     FULL_NAME @mandatory;
     EMAIL     @mandatory;
     STATUS    @Common.QuickInfo: 'ACTIVE or INACTIVE';
@@ -545,7 +587,7 @@ annotate AssetManagerService.Assets with @(
         Title          : { Value: ASSET_TAG },
         Description    : { Value: ASSET_NAME }
     },
-    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, LOCATION ],
+    UI.SelectionFields: [ ASSET_TAG, SERIAL_NUMBER, CATEGORY_NODE_KEY, STATUS, CURRENT_HOLDER_NODE_KEY, VENDOR_NODE_KEY, MANAGING_DEPARTMENT_NODE_KEY, LOCATION ],
     UI.PresentationVariant: { SortOrder: [{ Property: ASSET_TAG }], Visualizations: ['@UI.LineItem'] },
     UI.LineItem: [
         { Value: ASSET_TAG, ![@UI.Importance]: #High, ![@HTML5.CssDefaults]: { width: '7rem' } },
@@ -595,7 +637,7 @@ annotate AssetManagerService.Assignments with @(UI.LineItem: [
 
 annotate AssetManagerService.Maintenance with @(UI.LineItem: [
     { Value: TYPE },
-    { Value: ISSUE },
+    { Value: DESCRIPTION },
     { Value: SERVICE_VENDOR_NODE_KEY },
     { Value: REPORTED_DATE },
     { Value: COMPLETED_DATE },
@@ -729,5 +771,32 @@ annotate AssetUserService.AssetHistory with @(
         { Value: FROM_EMPLOYEE_NODE_KEY },
         { Value: TO_EMPLOYEE_NODE_KEY },
         { Value: REMARKS }
+    ]
+);
+
+
+ // Employee self-service profile: explicit columns are required by Fiori Elements.
+ // Keep the profile read-only and do not expose other employees.
+annotate AssetUserService.Employees with @(
+    UI.HeaderInfo: {
+        TypeName: 'My Profile',
+        TypeNamePlural: 'My Profile',
+        Title: { Value: FULL_NAME },
+        Description: { Value: EMAIL }
+    },
+    UI.LineItem: [
+        { Value: FULL_NAME, Label: 'Full Name' },
+        { Value: EMAIL, Label: 'Email' },
+        { Value: DEPARTMENT.NAME, Label: 'Department' },
+        { Value: LOCATION, Label: 'Location' }
+    ],
+    UI.FieldGroup #General: { Data: [
+        { Value: FULL_NAME, Label: 'Full Name' },
+        { Value: EMAIL, Label: 'Email' },
+        { Value: DEPARTMENT.NAME, Label: 'Department' },
+        { Value: LOCATION, Label: 'Location' }
+    ]},
+    UI.Facets: [
+        { $Type: 'UI.ReferenceFacet', Label: 'Employee Details', Target: '@UI.FieldGroup#General' }
     ]
 );

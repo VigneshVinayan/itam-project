@@ -67,6 +67,8 @@
                     kpi.overdueReturns > 0 ? "Error" : "Good");
                 addApp("Report-manage", "reports", "Reports & Export", "PDF export, download, e-mail",
                     "sap-icon://pdf-attachment", null, "Asset reports");
+                addApp("Manager-operations", "manageractions", "Department Operations", "Assign, transfer, return, review",
+                    "sap-icon://action-settings", null, "Department workflows");
                 addApp("Asset-overview", "overview", "Asset Overview", "Read-only asset list",
                     "sap-icon://inspection", kpi.assignedAssets, "Assigned assets", null, me.isAdmin);
             }
@@ -75,6 +77,8 @@
             if (me.isAdmin) {
                 addApp("Asset-manage", "assets", "Manage Assets", "Assign, transfer, return, retire",
                     "sap-icon://laptop", kpi.availableAssets, "Available assets", "Good");
+                addApp("Department-manage", "departments", "Departments", "Create, edit and deactivate",
+                    "sap-icon://org-chart", null, "Department master data");
                 addApp("Employee-manage", "employees", "Employees", "Master data",
                     "sap-icon://employee", kpi.employees, "Active employees");
                 addApp("AssetCategory-manage", "categories", "Asset Categories", "Master data",
@@ -87,10 +91,14 @@
 
             // User: inventory and own assets / history
             if (me.isUser) {
-                addApp("Asset-inventory", "inventory", "Hardware Inventory", "Search all hardware",
-                    "sap-icon://inspection", kpi.availableAssets, "Available assets");
+                addApp("Asset-inventory", "inventory", "My Hardware", "Assets currently issued to me",
+                    "sap-icon://inspection", kpi.myAssets, "My assigned assets");
                 addApp("Asset-mine", "myassets", "My Assignments", "Assets assigned to me",
                     "sap-icon://laptop", kpi.myAssets, "Assets I hold");
+                addApp("Employee-profile", "myprofile", "My Profile", "View your employee information",
+                    "sap-icon://employee", null, "My profile");
+                addApp("AssetRequest-mine", "myrequests", "Asset Requests", "Request returns or maintenance",
+                    "sap-icon://request", null, "Submit requests");
                 addApp("AssetHistory-mine", "myhistory", "My Asset History", "Hand-overs and returns",
                     "sap-icon://history", null, "Ownership history");
             }
@@ -168,10 +176,24 @@
                 }
             });
 
-            // "Sign Out" in the user menu logs out of XSUAA via the approuter
+            // The CAP port is an API server, not the SAP XSUAA login/logout endpoint.
+            // Real SAP sign-in and sign-out are managed by the SAP Approuter.
             sap.ushell.Container.registerLogout(function () {
-                window.location.href = "/do/logout";
-                return new Promise(function () {});   // keep waiting: the browser is leaving the page
+                var host = window.location.hostname;
+                var directCap = window.location.port === "4004" || /^port4004[-.]/.test(host);
+                if (directCap) {
+                    sap.ui.require(["sap/m/MessageBox"], function (MessageBox) {
+                        MessageBox.information(
+                            "SAP account switching is available through the ITAM Approuter (port 5000). " +
+                            "Open the Approuter URL and choose Sign Out to end the XSUAA session. " +
+                            "The CAP API on port 4004 cannot log out an SAP account.",
+                            { title: "Open SAP Login via Approuter" }
+                        );
+                    });
+                    return Promise.resolve();
+                }
+                window.location.assign("/do/logout");
+                return new Promise(function () {});
             });
 
             sap.ushell.Container.createRenderer("fiori2", true).then(function (renderer) {

@@ -5,7 +5,8 @@
   "type": "module",
   "dependencies": {
     "@cap-js/hana": "^3",
-    "@sap/cds": "^10"
+    "@sap/cds": "^10",
+    "@sap/xssec": "^4"
   },
   "devDependencies": {
     "@cap-js/cds-test": "^1",
@@ -16,18 +17,18 @@
     "start": "cds-serve",
     "watch": "cds watch",
     "test": "CDS_ENV=test node --test test/itam.test.js",
-    "build:apps": "mkdir -p gen/srv/app && cp -r app/index.html app/dashboard app/reports app/assets app/overview app/employees app/categories app/vendors app/auditlog app/inventory app/myassets app/myhistory gen/srv/app/"
+    "build:apps": "mkdir -p gen/srv/app && cp -r app/index.html app/dashboard app/manageractions app/reports app/assets app/overview app/employees app/departments app/categories app/vendors app/auditlog app/inventory app/myassets app/myhistory app/myprofile app/myrequests gen/srv/app/"
   },
   "cds": {
     "requires": {
       "db": "hana",
-      "auth": "dummy",
+      "auth": "xsuaa",
       "mail": {
         "impl": "srv/mail-service.js"
       },
       "[hybrid]": {
         "db": "hana",
-        "auth": "dummy"
+        "auth": "xsuaa"
       },
       "[development]": {
         "db": {
@@ -99,6 +100,10 @@
             "*": false
           }
         }
+      },
+      "[production]": {
+        "auth": "xsuaa",
+        "db": "hana"
       }
     }
   },

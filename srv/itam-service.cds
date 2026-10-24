@@ -110,6 +110,9 @@ service AssetAdminService {
     };
 
     @odata.draft.enabled
+    entity Departments as projection on database.master.Departments;
+
+    @odata.draft.enabled
     entity Employees as projection on database.master.Employees;
 
     @odata.draft.enabled
@@ -118,7 +121,7 @@ service AssetAdminService {
     @odata.draft.enabled
     entity Vendors as projection on database.master.Vendors;
 
-    @readonly
+    @restrict: [{ grant: 'READ' }, { grant: 'UPDATE' }]
     entity Assignments as projection on database.transaction.AssetAssignments {
         *,
         case when ASSIGNMENT_STATUS = 'ACTIVE' then 5 else 0 end as STATUS_CRITICALITY : Integer
@@ -128,6 +131,9 @@ service AssetAdminService {
     entity History as projection on database.transaction.OwnershipLedgers;
 
     @readonly
+    entity AssetRequests as projection on database.transaction.AssetRequests;
+
+    @restrict: [{ grant: 'READ' }, { grant: 'CREATE' }, { grant: 'UPDATE' }]
     entity Maintenance as projection on database.transaction.MaintenanceRecords {
         *,
         case when STATUS = 'OPEN' then 2 else 3 end as STATUS_CRITICALITY : Integer
@@ -154,7 +160,10 @@ service AssetAdminService {
 @requires: ['Manager', 'Admin']
 service AssetManagerService {
 
-    @readonly
+    @restrict: [
+        { grant: 'READ', to: ['Manager', 'Admin'] },
+        { grant: 'UPDATE', to: ['Manager', 'Admin'] }
+    ]
     entity Assets as projection on database.transaction.Assets {
         *,
         case
@@ -166,9 +175,25 @@ service AssetManagerService {
         end as STATUS_CRITICALITY : Integer
     };
 
-    @readonly entity Assignments as projection on database.transaction.AssetAssignments;
+    // Safe lifecycle actions preserve assignments and immutable ledger history.
+    action assignAsset(asset : UUID, employee : UUID, expectedReturnDate : Date, remarks : String(255)) returns String;
+    action transferAsset(asset : UUID, toEmployee : UUID, remarks : String(255)) returns String;
+    action returnAsset(asset : UUID, remarks : String(255)) returns String;
+    action updateAssignment(assignment : UUID, expectedReturnDate : Date, remarks : String(255)) returns String;
+
+    @readonly
+    entity AssetRequests as projection on database.transaction.AssetRequests;
+
+    // Managers can approve or reject requests from employees in their department.
+    // Approval records a decision only; the lifecycle action is executed separately.
+    action reviewAssetRequest(requestId : UUID, approve : Boolean, note : String(255)) returns String;
+    action raiseMaintenanceRequest(asset : UUID, description : String(255)) returns UUID;
+
+    @restrict: [{ grant: 'READ', to: ['Manager', 'Admin'] }, { grant: 'UPDATE', to: ['Manager', 'Admin'] }]
+    entity Assignments as projection on database.transaction.AssetAssignments;
     @readonly entity History     as projection on database.transaction.OwnershipLedgers;
     @readonly entity Maintenance as projection on database.transaction.MaintenanceRecords;
+    @readonly entity Departments as projection on database.master.Departments;
     @readonly entity Categories  as projection on database.master.AssetCategories;
     @readonly entity Vendors     as projection on database.master.Vendors;
     @readonly entity AssetStatuses as projection on database.codes.AssetStatuses;
@@ -176,7 +201,7 @@ service AssetManagerService {
 
     @readonly
     entity Employees as projection on database.master.Employees {
-        NODE_KEY, EMPLOYEE_NO, FULL_NAME, DEPARTMENT, LOCATION, STATUS
+        NODE_KEY, EMPLOYEE_NO, FULL_NAME, DEPARTMENT_NODE_KEY, DEPARTMENT, LOCATION, STATUS
     };
 
     // generated PDFs: only the requester can download, only until EXPIRES_AT
@@ -217,7 +242,8 @@ service AssetManagerService {
         category : UUID,
         location : String,
         dateFrom : Date,
-        dateTo   : Date
+        dateTo   : Date,
+        department : UUID
     ) returns Dashboard;
 
     // ---------------- Reports (FR-022 .. FR-024, FR-026) ----------------
@@ -242,7 +268,8 @@ service AssetManagerService {
         category   : UUID,
         location   : String,
         dateFrom   : Date,
-        dateTo     : Date
+        dateTo     : Date,
+        department : UUID
     ) returns ReportPreview;
 
     type ExportResult {
@@ -259,11 +286,12 @@ service AssetManagerService {
         category   : UUID,
         location   : String,
         dateFrom   : Date,
-        dateTo     : Date
+        dateTo     : Date,
+        department : UUID
     ) returns ExportResult;
 
     type EmailResult {
-        status     : String;     // SENT | FAILED | DUPLICATE
+        status     : String;     // SENT | SIMULATED | FAILED | DUPLICATE
         message    : String;
         requestId  : String;
         recipients : String;
@@ -277,6 +305,7 @@ service AssetManagerService {
         location   : String,
         dateFrom   : Date,
         dateTo     : Date,
+        department : UUID,
         recipients : String,     // comma-separated
         requestId  : String      // idempotency key: same key = no second e-mail
     ) returns EmailResult;
@@ -287,15 +316,18 @@ service AssetManagerService {
 // ==================================================
 
 @path: '/odata/v4/user'
+@impl: 'srv/user-service.js'
 @requires: 'User'
 service AssetUserService {
 
-    // hardware inventory without cost / retirement details
+    // A user sees only assets assigned to their identity.
     @readonly
+    @restrict: [{ grant: 'READ', where: 'HOLDER_EMAIL = $user' }]
     entity Assets as projection on database.transaction.Assets {
         NODE_KEY, ASSET_TAG, SERIAL_NUMBER, ASSET_NAME, LOCATION, STATUS,
         PURCHASE_DATE, WARRANTY_END, FIRST_DISTRIBUTION_DATE,
         CATEGORY, CURRENT_HOLDER,
+        CURRENT_HOLDER.EMAIL as HOLDER_EMAIL : String(255),
         case
             when STATUS = 'AVAILABLE'   then 3
             when STATUS = 'ASSIGNED'    then 5
@@ -304,6 +336,20 @@ service AssetUserService {
             else 0
         end as STATUS_CRITICALITY : Integer
     } where STATUS != 'ARCHIVED';
+
+    @readonly
+    @restrict: [{ grant: 'READ', where: 'REQUESTED_BY_EMAIL = $user' }]
+    entity AssetRequests as projection on database.transaction.AssetRequests {
+        *,
+        REQUESTED_BY.EMAIL as REQUESTED_BY_EMAIL : String(255),
+        ASSET.ASSET_TAG as ASSET_TAG,
+        ASSET.ASSET_NAME as ASSET_NAME,
+        RESOLVED_BY.FULL_NAME as REVIEWED_BY_NAME
+    };
+
+    // Submits a request; no direct asset-state change is permitted.
+    action submitReturnRequest(asset : UUID, description : String(255)) returns UUID;
+    action submitMaintenanceRequest(asset : UUID, description : String(255)) returns UUID;
 
     // only own assignments
     @readonly
@@ -331,7 +377,11 @@ service AssetUserService {
     entity Categories as projection on database.master.AssetCategories { NODE_KEY, NAME };
 
     @readonly
-    entity Employees as projection on database.master.Employees { NODE_KEY, FULL_NAME, DEPARTMENT, LOCATION };
+    @restrict: [{ grant: 'READ', where: 'EMAIL = $user' }]
+    entity Employees as projection on database.master.Employees { NODE_KEY, FULL_NAME, EMAIL, DEPARTMENT_NODE_KEY, DEPARTMENT, LOCATION };
+
+    @readonly
+    entity Departments as projection on database.master.Departments { NODE_KEY, NAME };
 
     @readonly
     entity AssetStatuses as projection on database.codes.AssetStatuses;
